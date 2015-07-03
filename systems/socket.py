@@ -3,7 +3,7 @@ Create space switching constraints on a node
 
 '''
 import maya.cmds as cmds
-from ROOFTOPS.core.common import align
+from rooftops.core.common import align
 
 
 def build(node=None, targetList=[], targetNames=[], settingsNode=None, point=1, orient=1, name=''):

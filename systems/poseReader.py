@@ -1,6 +1,6 @@
 import maya.cmds as cmds
 import maya.OpenMaya as om
-from ROOFTOPS.core import common
+from rooftops.core import common
 
 class PoseReader(object):
     '''

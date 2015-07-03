@@ -1,7 +1,6 @@
 import maya.cmds as cmds
 import math
-from ROOFTOPS.core import common
-from ROOFTOPS.systems import curve, controls, measure, nonRoll
+from rooftops.core import common
 
 def build(upArm=None, lowArm=None, wrist=None, end=None, side='lf', twistJoints=5, globalScaleAttr=None, cleanup=0):
     '''

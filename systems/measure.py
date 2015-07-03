@@ -1,5 +1,5 @@
 import maya.cmds as cmds
-from ROOFTOPS.core import common
+from rooftops.core import common
 
 def build(start=None, end=None, startLoc=None, endLoc=None, name=''):
     '''

@@ -1,5 +1,5 @@
 import maya.cmds as cmds
-from ROOFTOPS.core import common
+from rooftops.core import common
 
 def curveBetweenNodes(start=None, end=None, name=''):
     '''

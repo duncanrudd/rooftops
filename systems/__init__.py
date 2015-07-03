@@ -1,5 +1,5 @@
 import os
-import ROOFTOPS as rt
+import rooftops as rt
 
 #add subdirectories you want to import here
 dirList = []

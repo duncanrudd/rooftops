@@ -1,8 +1,8 @@
 import maya.cmds as cmds
 import maya.OpenMaya as om
 import math
-from ROOFTOPS.core import common
-from ROOFTOPS.systems import controls
+from rooftops.core import common
+from rooftops.systems import controls
 
 
 def build( root, fingerDict, side='rt', cleanUp=1 ):

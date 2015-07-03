@@ -1,7 +1,7 @@
 import maya.cmds as cmds
 import math
-from ROOFTOPS.core import common
-from ROOFTOPS.systems import curve, controls, measure, nonRoll
+from rooftops.core import common
+from rooftops.systems import curve, controls, measure, nonRoll
 
 def build(upLeg=None, lowLeg=None, ankle=None, end=None, side='lf', twistJoints=5, globalScaleAttr=None, cleanup=0):
     '''
