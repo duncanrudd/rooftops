@@ -97,5 +97,3 @@ def build(node=None, targetList=[], targetNames=[], settingsNode=None, point=1, 
                     outTangentType = 'linear',
                     value = keyValue,
                 )
-    
-build()

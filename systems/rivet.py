@@ -1,37 +1,40 @@
 import maya.cmds as cmds
 from rooftops.core import common
 
-def build( targ=None, mesh=None, name='' ):
+def build( targ=None, mesh=None, paramU=None, paramV=None, name='' ):
     '''
     creates a follicle at the closest point to targ on the surface of mesh
     
     '''
-    if not targ or not mesh:
-        return 'Argument Error, Please provide nodes for targ and mesh arguments'
+    if paramU == None or paramV == None:
+        print paramU
+        print paramV
+        if not targ or not mesh:
+            return 'Argument Error, Please provide nodes for targ and mesh arguments'
+        
+        if cmds.nodeType(mesh) == 'transform':
+            mesh = cmds.listRelatives(mesh, s=1)[0]
+        
+        targPos = cmds.xform( targ, q=1, ws=1, t=1 )
+        pmm1 = cmds.createNode('pointMatrixMult')
+        cmds.setAttr('%s.inPoint' % pmm1, targPos[0], targPos[1], targPos[2] )
+        cmds.connectAttr('%s.worldInverseMatrix[0]' % mesh, '%s.inMatrix' % pmm1)
+        targPos = cmds.getAttr('%s.output' % pmm1)[0]
+        print targPos
     
-    if cmds.nodeType(mesh) == 'transform':
-        mesh = cmds.listRelatives(mesh, s=1)[0]
-    
-    targPos = cmds.xform( targ, q=1, ws=1, t=1 )
-    pmm1 = cmds.createNode('pointMatrixMult')
-    cmds.setAttr('%s.inPoint' % pmm1, targPos[0], targPos[1], targPos[2] )
-    cmds.connectAttr('%s.worldInverseMatrix[0]' % mesh, '%s.inMatrix' % pmm1)
-    targPos = cmds.getAttr('%s.output' % pmm1)[0]
-    print targPos
-
-    closestPoint=''
-    
-    if cmds.nodeType(mesh) == 'mesh':
-        closestPoint = cmds.createNode('closestPointOnMesh')
-        cmds.setAttr( '%s.inPosition' % closestPoint, targPos[0], targPos[1], targPos[2] )
-        cmds.connectAttr( '%s.worldMesh[0]' % mesh, '%s.inMesh' % closestPoint )
-    else:
-        closestPoint = cmds.createNode('closestPointOnSurface')
-        cmds.setAttr( '%s.inPosition' % closestPoint, targPos[0], targPos[1], targPos[2] )
-        cmds.connectAttr( '%s.worldSpace[0]' % mesh, '%s.inputSurface' % closestPoint )
-    
-    paramU = cmds.getAttr( '%s.result.parameterU' % closestPoint )
-    paramV = cmds.getAttr( '%s.result.parameterV' % closestPoint )
+        closestPoint=''
+        
+        if cmds.nodeType(mesh) == 'mesh':
+            closestPoint = cmds.createNode('closestPointOnMesh')
+            cmds.setAttr( '%s.inPosition' % closestPoint, targPos[0], targPos[1], targPos[2] )
+            cmds.connectAttr( '%s.worldMesh[0]' % mesh, '%s.inMesh' % closestPoint )
+        else:
+            closestPoint = cmds.createNode('closestPointOnSurface')
+            cmds.setAttr( '%s.inPosition' % closestPoint, targPos[0], targPos[1], targPos[2] )
+            cmds.connectAttr( '%s.worldSpace[0]' % mesh, '%s.inputSurface' % closestPoint )
+        
+        paramU = cmds.getAttr( '%s.result.parameterU' % closestPoint )
+        paramV = cmds.getAttr( '%s.result.parameterV' % closestPoint )
     
     # Create follicle
     foll = cmds.createNode('follicle')
@@ -54,14 +57,13 @@ def build( targ=None, mesh=None, name='' ):
     cmds.setAttr( '%s.inheritsTransform' % follXform, 0 )
     
     # Create group at exact location of targ - this is the node to constrain to
-    constGrp = cmds.group(empty=1, name=(name+'_const_grp'))
-    common.align(constGrp, follXform, translate=False )
-    common.align(constGrp, targ, orient=False )
-    cmds.parent(constGrp, follXform)
+    #constGrp = cmds.group(empty=1, name=(name+'_const_grp'))
+    #common.align(constGrp, follXform, translate=False )
+    #common.align(constGrp, targ, orient=False )
+    #cmds.parent(constGrp, follXform)
     
-    cmds.delete( pmm1 )
-    cmds.delete( closestPoint )
+    if paramU == None or paramV == None:
+        cmds.delete( pmm1 )
+        cmds.delete( closestPoint )
     
-    return {'follicle':follXform, 'constGrp':constGrp}
-    
-#build( targ='locator1', mesh='pPlane1', name='test' )
+    return follXform

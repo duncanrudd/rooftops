@@ -109,7 +109,7 @@ def pointsAlongVector( start='', end='', divisions=2 ):
 
 ######################################################################################################################################################
 
-def insertGroup( node=None ):
+def insertGroup( node=None, suffix='grp' ):
     '''
     creates an empty group aligned to the selected node and inserts it into the hierarchy;
     
@@ -118,7 +118,7 @@ def insertGroup( node=None ):
         node = cmds.ls(sl=1)[0]
     if node:
         parent = cmds.listRelatives(node, p=1)
-        grp = cmds.group(empty=1, n='%s_grp' % node)
+        grp = cmds.group(empty=1, n='%s_%s' % (node, suffix))
         align(node=grp, target=node)
         if parent:
             cmds.parent(grp, parent)
@@ -132,7 +132,7 @@ def insertGroup( node=None ):
     
 ######################################################################################################################################################
 
-def align( node=None, target=None, translate=True, orient=True ):
+def align( node=None, target=None, translate=True, orient=True, scale=False ):
     '''
     sets the translation and / or orientation of node to match target
     
@@ -150,6 +150,8 @@ def align( node=None, target=None, translate=True, orient=True ):
     targetMatrix = cmds.xform( target, q=True, ws=1, matrix=True )
     nodeMatrix = cmds.xform( node, q=True, ws=1, matrix=True )
     
+    nodeScale = cmds.getAttr(node+'.scale')[0]
+    
     if translate and orient:
         cmds.xform ( node, ws=1, matrix=targetMatrix )
     elif translate:
@@ -160,6 +162,9 @@ def align( node=None, target=None, translate=True, orient=True ):
         # set row4 x y z to row4 of nodeMatrix
         targetMatrix[ 12:-1 ] = nodeMatrix[ 12:-1 ]
         cmds.xform ( node, ws=1, matrix=targetMatrix )
+        
+    if not scale:
+        cmds.setAttr(node+'.scale', nodeScale[0], nodeScale[1], nodeScale[2])
         
 ######################################################################################################################################################
         
