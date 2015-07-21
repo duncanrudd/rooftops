@@ -134,8 +134,8 @@ def build(upArm=None, lowArm=None, wrist=None, end=None, side='lf', twistJoints=
     cmds.parent(endIkHandle, ikHandCtrl)
     cmds.setAttr('%s.rotateX' % endIkHandle, 0)
     
-    if side == 'lf':
-        cmds.setAttr('%s.preferredAngleY' % ikChain[1], -90)
+    #if side == 'lf':
+        #cmds.setAttr('%s.preferredAngleY' % ikChain[1], -90)
     
     # Set up ik / fk blending
     for i in range(4):

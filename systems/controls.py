@@ -41,9 +41,10 @@ def circleBumpCtrl(radius=20.0, name='', axis='z'):
     creates a circular nurbs curve with a bump to indicate orientation
     
     '''
-    ctrl = cmds.circle(name=name, r=radius, ch=0, o=1, s=24)
+    ctrl = cmds.circle(name=name, r=radius, ch=0, o=1, s=24)[0]
     
     shape = common.getShape(ctrl)
+    shape = cmds.rename(shape, ctrl+'Shape')
     cmds.select( '%s.cv[ 1 ]' % shape )
     cmds.move(radius*.5, moveY=1, r=1)
     
@@ -106,5 +107,34 @@ def squareCtrl(size=20.0, name='', axis='y'):
     if axis != 'z':
         orientCtrl(ctrl=ctrl, axis=axis)
     return ctrl
+
+######################################################################################################################################################
+
+def pinCtrl(radius=20.0, name='', axis='z'):
+    '''
+    creates a pin control
+    
+    '''
+    axisDict={'x':(radius,0,0), 'y':(0,radius,0), 'z':(0,0,radius)}
+    line = cmds.curve(d = 1, p = [(0,0,0), axisDict[axis]], k = [0,1], name=name)
+    
+    circle = cmds.circle(name=(name + '_circle'), r=radius*.2, ch=0, o=1, s=24)
+    if axis != 'z':
+        orientCtrl(ctrl=circle, axis=axis)
+    shape = cmds.listRelatives(circle, shapes = True)[0]
+
+    cmds.move(axisDict[axis][0], axisDict[axis][1], axisDict[axis][2], "%s.cv[:]" % shape, r = 1)
+    
+    cmds.parent(shape, line, shape = 1, r = 1)
+    cmds.delete(circle)
+    
+    return line
+
+
+
+
+
+
+
 
 

@@ -320,6 +320,30 @@ def placePoleVector(node1=None, node2=None, node3=None, axis='-z', mult=30):
         return (resultVec.x, resultVec.y, resultVec.z)
     
     
+######################################################################################################################################################
+
+def connectAttrs(source=None, targetList=[], t=1, r=1):
+    '''
+    Connects translate and rotate attributes of source > targetList
+    
+    '''
+    if not source or not targetList:
+        sel = cmds.ls(sl=1)
+        if len(sel) > 1:
+            source = sel[0]
+            targetList = [s for s in sel[1:]]
+        else:
+            return 'Please supply or select source and targetList'
+    if type(targetList) == type(''):
+        targetList = [targetList]
+        
+    for target in targetList:
+        if t:
+            cmds.connectAttr(source+'.t', target+'.t')
+        if r:
+            cmds.connectAttr(source+'.r', target+'.r')
+    
+    
     
 
 

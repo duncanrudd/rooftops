@@ -1,7 +1,7 @@
 import maya.cmds as cmds
 
 from rooftops.core import common
-from rooftops.systems import rivet
+from rooftops.systems import rivet, controls
 
 def buildFoot(name='', numJoints=5, side='rt', blendAttr=None, cleanup=1):
     
@@ -22,7 +22,8 @@ def buildFoot(name='', numJoints=5, side='rt', blendAttr=None, cleanup=1):
         cmds.parent(f, noTouch_grp)
         
     # Create IK Control
-    ikCtrl = cmds.circle(name=(name + '_ik_bend_ctrl'))[0]
+    ##ikCtrl = cmds.circle(name=(name + '_ik_bend_ctrl'))[0]
+    ikCtrl = controls.circleBumpCtrl(radius=5.0, name=(name + '_ik_bend_ctrl'), axis='x')[0]
     cmds.parent(ikCtrl, grp)
     common.insertGroup(ikCtrl)
     cmds.addAttr(ikCtrl, ln='falloff', at='double', keyable=1, minValue=0.01)
@@ -53,7 +54,8 @@ def buildFoot(name='', numJoints=5, side='rt', blendAttr=None, cleanup=1):
     cmds.connectAttr(ikCtrl+'.ry', driven_grp+'.ry')
     
     # Create IK toe Control
-    ikToeCtrl = cmds.circle(name=(name + '_ik_toe_ctrl'))[0]
+    ##ikToeCtrl = cmds.circle(name=(name + '_ik_toe_ctrl'))[0]
+    ikToeCtrl = controls.circleBumpCtrl(radius=3.0, name=(name + '_ik_toe_ctrl'), axis='x')[0]
     cmds.parent(ikToeCtrl, ikCtrl)
     common.insertGroup(ikToeCtrl)
         
@@ -94,7 +96,8 @@ def buildFoot(name='', numJoints=5, side='rt', blendAttr=None, cleanup=1):
         cmds.parent(f, fk_noTouch_grp)
     
     # Create FK Control
-    fkCtrl = cmds.circle(name=(name + '_fk_bend_ctrl'))[0]
+    ##fkCtrl = cmds.circle(name=(name + '_fk_bend_ctrl'))[0]
+    fkCtrl = controls.circleBumpCtrl(radius=4.0, name=(name + '_fk_bend_ctrl'), axis='x')[0]
     cmds.parent(fkCtrl, fk_grp)
     common.insertGroup(fkCtrl)
     cmds.addAttr(fkCtrl, ln='falloff', at='double', keyable=1, minValue=0.01)
