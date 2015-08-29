@@ -6,14 +6,14 @@ from shiboken import wrapInstance
 def maya_main_window():
     main_window_ptr = omui.MQtUtil.mainWindow()
     return wrapInstance(long(main_window_ptr), QtGui.QWidget)
-    
+
 class PickerEditor(QtGui.QWidget):
     def __init__(self):
         super(PickerEditor, self).__init__()
         self.uiName = 'pickerEditor'
         self.delete()
         self.buttonList = []
-        self.switch = 1
+        self.selected = []
         self.build()
         
     def delete(self):
@@ -22,15 +22,28 @@ class PickerEditor(QtGui.QWidget):
             cmds.deleteUI(self.uiName, wnd=True)
             
     def selectionChanged(self):
-        self.selected = self.sender()
-        self.switch = 0
-        self.moveX_spinBox.setValue(self.sender().pos().x())
-        self.switch = 0
-        self.moveY_spinBox.setValue(self.sender().pos().y())
-        self.switch = 0
-        self.sizeX_spinBox.setValue(self.sender().width())
-        self.switch = 0
-        self.sizeY_spinBox.setValue(self.sender().height())
+        sender = self.sender()
+        if not sender in self.selected:
+            self.selected.append(sender)
+        if len(self.selected) == 1:
+            self.moveX_spinBox.setValue(sender.pos().x())
+            self.moveY_spinBox.setValue(sender.pos().y())
+            self.sizeX_spinBox.setValue(sender.width())
+            self.sizeY_spinBox.setValue(sender.height())
+        else:
+            self.moveX_spinBox.setValue(0)
+            self.moveY_spinBox.setValue(0)
+            self.sizeX_spinBox.setValue(0)
+            self.sizeY_spinBox.setValue(0)
+        
+        modifiers = QtGui.QApplication.keyboardModifiers()
+        
+        #if modifiers == QtCore.Qt.ShiftModifier:
+        if modifiers == QtCore.Qt.NoModifier:
+            for b in self.buttonList:
+                b.setChecked(0)
+            sender.setChecked(1)
+            
         
     
     def addButton(self):
@@ -40,34 +53,36 @@ class PickerEditor(QtGui.QWidget):
         
         '''
         b = QtGui.QPushButton('BUTTON', parent=self.canvas)
+        b.setCheckable(1)
+        b.setStyleSheet('background-color: rgba(0, 255, 0, 75%);')
         b.show()
         self.buttonList.append(b)
-        self.selected = b
+        self.selected = [b]
         b.clicked.connect(self.selectionChanged)
         
     def moveButton(self):
-        if self.switch:
+        if len(self.selected) == 1:
             pos = QtCore.QPoint()
             pos.setX(self.moveX_spinBox.value())
             pos.setY(self.moveY_spinBox.value())
-            self.selected.move(pos)
-        self.switch = 1
+            self.selected[-1].move(pos)
+        elif len(self.selected) > 1:
+            for b in self.selected:
+                b.move(b.x() + self.moveX_spinBox.value(), b.y() + self.moveY_spinBox.value())
         
     def sizeButton(self):
-        if self.switch:
-            x = self.sizeX_spinBox.value()
-            y = self.sizeY_spinBox.value()
-            self.selected.resize(x, y)
-        self.switch = 1
+        x = self.sizeX_spinBox.value()
+        y = self.sizeY_spinBox.value()
+        self.selected[-1].resize(x, y)
         
     def pickColour(self):
         col = self.colourDialog.getColor()
         if col:
-            self.selected.setStyleSheet('background-color: rgb(%s, %s, %s);' % (col.red(), col.green(), col.blue()))
+            self.selected[-1].setStyleSheet('background-color: rgb(%s, %s, %s);' % (col.red(), col.green(), col.blue()))
         
         
     def build(self):
-       # get maya main window
+        # get maya main window
         maya = maya_main_window()
         
         # create main window
@@ -113,12 +128,12 @@ class PickerEditor(QtGui.QWidget):
         self.moveX_spinBox = QtGui.QSpinBox()
         self.moveX_spinBox.setMaximum(300)
         self.moveLayout.addWidget(self.moveX_spinBox)
-        self.moveX_spinBox.valueChanged.connect(self.moveButton)
+        self.moveX_spinBox.editingFinished.connect(self.moveButton)
 
         self.moveY_spinBox = QtGui.QSpinBox()
         self.moveY_spinBox.setMaximum(450)
         self.moveLayout.addWidget(self.moveY_spinBox)
-        self.moveY_spinBox.valueChanged.connect(self.moveButton)
+        self.moveY_spinBox.editingFinished.connect(self.moveButton)
         
         # scale spinBox
         self.size_label = QtGui.QLabel('Size: x, y')
@@ -129,12 +144,12 @@ class PickerEditor(QtGui.QWidget):
         self.sizeX_spinBox = QtGui.QSpinBox()
         self.sizeX_spinBox.setMaximum(300)
         self.sizeLayout.addWidget(self.sizeX_spinBox)
-        self.sizeX_spinBox.valueChanged.connect(self.sizeButton)
+        self.sizeX_spinBox.editingFinished.connect(self.sizeButton)
 
         self.sizeY_spinBox = QtGui.QSpinBox()
         self.sizeY_spinBox.setMaximum(450)
         self.sizeLayout.addWidget(self.sizeY_spinBox)
-        self.sizeY_spinBox.valueChanged.connect(self.sizeButton)
+        self.sizeY_spinBox.editingFinished.connect(self.sizeButton)
         
         #Color picker button
         self.colour_btn = QtGui.QPushButton('Button Colour')
