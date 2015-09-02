@@ -33,10 +33,10 @@ class PickerButton(QtGui.QPushButton):
     '''
     def __init__(self, text, parent):
         super(PickerButton, self).__init__(text=text, parent=parent)
-        self.sceneNode = None
-        self.parentNode = None
-        self.mirrorNode = None
-        self.rigPart = None
+        self.sceneNode = ''
+        self.parentNode = ''
+        self.mirrorNode = ''
+        self.rigPart = ''
 
 class PickerEditor(QtGui.QWidget):
     def __init__(self):
@@ -193,8 +193,11 @@ class PickerEditor(QtGui.QWidget):
             for b in self.selected:
                 b.setStyleSheet('background-color: rgba(%s, %s, %s, 175);' % (col.red(), col.green(), col.blue()))
 
-    def loadImage(self):
-        self.bg = QtGui.QFileDialog.getOpenFileName(self, "Select Background Image")[0]
+    def loadImage(self, image=None):
+        if image:
+            self.bg = image
+        else:
+            self.bg = QtGui.QFileDialog.getOpenFileName(self, "Select Background Image")[0]
         if os.path.isfile(self.bg):
             print self.bg
             self.canvasLabel.setPixmap(QtGui.QPixmap(self.bg))
@@ -213,16 +216,17 @@ class PickerEditor(QtGui.QWidget):
         text = self.bindNodeText.text()
         if text:
             if cmds.objExists(text):
-                self.selected[0].bindNode = text
+                self.selected[0].sceneNode = text
                 print 'Bound to ' + text
             else:
                 return showDialog('Object Error', ('Scene object: ' + text + ' does not exist'))
         else:
             return showDialog('Object Error', 'Please enter the name of a scene node to bind to')
 
-    def getButtonData(self, button):
+    def getButtonData(self, button, bindings=0):
         '''
         Returns a dictionary with the supplied button's data
+        If the bindings flag is set, also returns the scene node bindings
     
         '''
         attrDict = {}
@@ -232,14 +236,26 @@ class PickerEditor(QtGui.QWidget):
         attrDict['height'] = str(button.size().height())
         attrDict['style'] = str(button.styleSheet())
         attrDict['text'] = button.text()
+        
+        if bindings:
+            attrDict['sceneNode'] = button.sceneNode
+            attrDict['parentNode'] = button.parentNode
+            attrDict['mirrorNode'] = button.mirrorNode
+            attrDict['rigPart'] = button.rigPart
     
         return attrDict
 
-    def setButtonData(self, button, attrDict):
+    def setButtonData(self, button, attrDict, bindings=0):
         button.setText(attrDict['text'])
         button.move(int(attrDict['xPos']), int(attrDict['yPos']))
         button.resize(int(attrDict['width']), int(attrDict['height']))
         button.setStyleSheet(attrDict['style'])
+        
+        if bindings:
+            button.sceneNode = attrDict['sceneNode']
+            button.parentNode = attrDict['parentNode']
+            button.mirrorNode = attrDict['mirrorNode']
+            button.rigPart = attrDict['rigPart']
 
 
     def save(self):
@@ -252,7 +268,7 @@ class PickerEditor(QtGui.QWidget):
         # Gather button info
         buttons = et.SubElement(parent=root, tag='buttons')
         for b in self.buttonList:
-            e = et.SubElement(parent=buttons, tag='btn', attrib=self.getButtonData(b))
+            e = et.SubElement(parent=buttons, tag='btn', attrib=self.getButtonData(b, bindings=1))
             
         # BG image
         bg = et.SubElement(parent=root, tag='bg', file=self.bg)
@@ -266,6 +282,8 @@ class PickerEditor(QtGui.QWidget):
             b.deleteLater()
         self.buttonList = []
         self.selected = []
+        self.bg = ''
+        self.canvasLabel.setPixmap(None)
 
     def load(self):
         filename = QtGui.QFileDialog.getOpenFileName(self, "Load Picker")[0]
@@ -277,7 +295,8 @@ class PickerEditor(QtGui.QWidget):
         buttons = root.find('buttons')
         for btn in buttons:
             b = self.addButton()
-            self.setButtonData(b, btn.attrib)
+            self.setButtonData(b, btn.attrib, bindings=1)
+        self.loadImage(image=root.find('bg').get('file'))
         print 'loading: ' + filename
 
     def build(self):
@@ -469,6 +488,10 @@ class Picker(QtGui.QWidget):
         button.move(int(attrDict['xPos']), int(attrDict['yPos']))
         button.resize(int(attrDict['width']), int(attrDict['height']))
         button.setStyleSheet(attrDict['style'])
+        button.sceneNode = attrDict['sceneNode']
+        button.parentNode = attrDict['parentNode']
+        button.mirrorNode = attrDict['mirrorNode']
+        button.rigPart = attrDict['rigPart']
     
     def selectionChanged(self):
         sender = self.sender()
@@ -482,6 +505,7 @@ class Picker(QtGui.QWidget):
             sender.setChecked(1)
 
         self.selected = [b for b in self.buttonList if b.isChecked()]
+        cmds.select([b.sceneNode for b in self.selected if b.sceneNode])
     
     def addButton(self, parent):
         '''
@@ -496,7 +520,7 @@ class Picker(QtGui.QWidget):
         b.clicked.connect(self.selectionChanged)
         return b
     
-    def load(self, filename, parent):
+    def load(self, filename, parent, asset):
         tree = et.parse(filename)
         if not tree:
             return showDialog('File Error', ('File not found: ' + filename))
@@ -505,12 +529,11 @@ class Picker(QtGui.QWidget):
         for btn in buttons:
             b = self.addButton(parent)
             self.setButtonData(b, btn.attrib)
+            b.sceneNode = asset + ':' + b.sceneNode
         bg = root.find('bg').get('file')
         if bg:
             if os.path.exists(bg):
                 parent.setPixmap(QtGui.QPixmap(bg))
-                print bg
-        print 'loading: ' + filename
             
     def build(self):
     # get maya main window
@@ -535,10 +558,10 @@ class Picker(QtGui.QWidget):
         self.canvas.setFixedSize(400, 520)
         self.mainVLayout.addWidget(self.canvas)
         
-        for tab in self.getScenePickers():
+        for asset in self.getScenePickers():
             canvasLabel = QtGui.QLabel('')
             canvasLabel.setFixedSize(400, 500)
-            t = self.canvas.addTab(canvasLabel, tab)
-            self.load(self.pickerPath +tab+'_picker.xml', canvasLabel)
+            t = self.canvas.addTab(canvasLabel, asset)
+            self.load(self.pickerPath +asset+'_picker.xml', canvasLabel, asset)
         
         self.mainWindow.show()
