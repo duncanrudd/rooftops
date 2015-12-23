@@ -1,3 +1,5 @@
+__author__ = 'drudd'
+
 import maya.cmds as cmds
 import maya.OpenMayaUI as omui
 from PySide import QtCore, QtGui
@@ -6,7 +8,6 @@ import os
 import xml.etree.ElementTree as et
 from xml.dom import minidom
 import json
-
 
 def prettyPrint(elem):
     """Return a pretty-printed XML string for the Element.
@@ -48,7 +49,7 @@ class PickerEditor(QtGui.QWidget):
         self.delete()
         self.buttonList = []
         self.selected = []
-        self.bg = ''
+        self.tabs = []
         self.build()
 
     def delete(self):
@@ -68,12 +69,37 @@ class PickerEditor(QtGui.QWidget):
 
         self.selected = [b for b in self.buttonList if b.isChecked()]
 
+    def addNewTab(self, tabName='New Tab'):
+        '''
+        Adds a new tab to the canvas
+        '''
+        canvasLabel = QtGui.QLabel('')
+        canvasLabel.setFixedSize(400, 500)
+        self.canvas.setAutoFillBackground(True)
+        p = canvasLabel.palette()
+        p.setColor(canvasLabel.backgroundRole(), 'white')
+        canvasLabel.setPalette(p)
+        t = self.canvas.addTab(canvasLabel, tabName)
+        self.tabs.append({'tab':t, 'bg':''})
+        return t
+
+    def deleteTab(self):
+        '''
+        Removes the currently visible tab from the canvas
+        '''
+        del self.tabs[self.canvas.currentIndex()]
+        currentTab = self.canvas.currentWidget()
+        currentTab.deleteLater()
+
+    def renameTab(self):
+        self.canvas.setTabText(self.canvas.currentIndex(), self.tabText.text())
+
     def addButton(self):
         '''
         called from: self.addButton_btn
         Adds a new button to the canvas
         '''
-        b = PickerButton(text='BUTTON', parent=self.canvas)
+        b = PickerButton(text='BUTTON', parent=self.canvas.currentWidget())
         b.setCheckable(1)
         b.setStyleSheet('background-color: rgba(0, 255, 0, 175);')
         b.show()
@@ -197,12 +223,12 @@ class PickerEditor(QtGui.QWidget):
 
     def loadImage(self, image=None):
         if image:
-            self.bg = image
+            self.tabs[self.canvas.currentIndex()]['bg'] = image
         else:
-            self.bg = QtGui.QFileDialog.getOpenFileName(self, "Select Background Image")[0]
-        if os.path.isfile(self.bg):
-            print self.bg
-            self.canvasLabel.setPixmap(QtGui.QPixmap(self.bg))
+            self.tabs[self.canvas.currentIndex()]['bg'] = QtGui.QFileDialog.getOpenFileName(self, "Select Background Image")[0]
+        if os.path.isfile(self.tabs[self.canvas.currentIndex()]['bg']):
+            print self.tabs[self.canvas.currentIndex()]['bg']
+            self.canvas.currentWidget().setPixmap(QtGui.QPixmap(self.tabs[self.canvas.currentIndex()]['bg']))
             print 'LOADED IMAGE'
 
     def loadBindNodeFromScene(self):
@@ -229,21 +255,20 @@ class PickerEditor(QtGui.QWidget):
         '''
         Populates the defaults dictionary on selected buttons.
         Makes a dictionary key for each keyable attribute and stores the current value
-
         '''
         for btn in self.selected:
             if btn.sceneNode:
                 btn.defaults = {}
-                for attr in cmds.listAttr(btn.sceneNode, k=1):
+                for attr in cmds.listAttr(btn.sceneNode, k=1, u=1):
                     btn.defaults[attr] = cmds.getAttr(btn.sceneNode + '.' + attr)
 
-            print btn.defaults 
+            print btn.defaults
 
     def getButtonData(self, button, bindings=0):
         '''
         Returns a dictionary with the supplied button's data
         If the bindings flag is set, also returns the scene node bindings
-    
+
         '''
         attrDict = {}
         attrDict['xPos'] = str(button.x())
@@ -252,15 +277,14 @@ class PickerEditor(QtGui.QWidget):
         attrDict['height'] = str(button.size().height())
         attrDict['style'] = str(button.styleSheet())
         attrDict['text'] = button.text()
-        
+
         if bindings:
             attrDict['sceneNode'] = button.sceneNode
             attrDict['parentNode'] = button.parentNode
             attrDict['mirrorNode'] = button.mirrorNode
             attrDict['rigPart'] = button.rigPart
             attrDict['defaults'] = json.dumps(button.defaults)
-    
-    
+
         return attrDict
 
     def setButtonData(self, button, attrDict, bindings=0):
@@ -268,7 +292,7 @@ class PickerEditor(QtGui.QWidget):
         button.move(int(attrDict['xPos']), int(attrDict['yPos']))
         button.resize(int(attrDict['width']), int(attrDict['height']))
         button.setStyleSheet(attrDict['style'])
-        
+
         if bindings:
             button.sceneNode = attrDict['sceneNode']
             button.parentNode = attrDict['parentNode']
@@ -276,47 +300,54 @@ class PickerEditor(QtGui.QWidget):
             button.rigPart = attrDict['rigPart']
             button.defaults = json.loads(attrDict['defaults'])
 
-
     def save(self):
         filename = QtGui.QFileDialog.getSaveFileName(self, "Save Picker")[0]
-    
+
         # Xml root element
         root = et.Element('picker')
         root.set('version', '1.0')
-    
-        # Gather button info
-        buttons = et.SubElement(parent=root, tag='buttons')
-        for b in self.buttonList:
-            e = et.SubElement(parent=buttons, tag='btn', attrib=self.getButtonData(b, bindings=1))
-            
-        # BG image
-        bg = et.SubElement(parent=root, tag='bg', file=self.bg)
-    
+
+        # Get Tabs
+        tabs = et.SubElement(parent=root, tag='tabs')
+        for i in range(self.canvas.count()):
+            t = et.SubElement(parent=tabs, tag='tab', label=self.canvas.tabText(i))
+
+            # Gather button info
+            buttons = et.SubElement(parent=t, tag='buttons')
+            for b in self.canvas.widget(i).children():
+                e = et.SubElement(parent=buttons, tag='btn', attrib=self.getButtonData(b, bindings=1))
+
+            # BG image
+            bg = et.SubElement(parent=t, tag='bg', file=self.tabs[i]['bg'])
+
         # Xml tree
         open(filename, 'w').write(prettyPrint(root))
         print 'saving: ' + filename
-    
+
     def clearCanvas(self):
-        for b in self.buttonList:
-            b.deleteLater()
+        self.canvas.clear()
         self.buttonList = []
         self.selected = []
-        self.bg = ''
-        self.canvasLabel.setPixmap(None)
+        self.tabs = []
 
     def load(self):
         filename = QtGui.QFileDialog.getOpenFileName(self, "Load Picker")[0]
         tree = et.parse(filename)
         if not tree:
             return showDialog('File Error', ('File not found: ' + filename))
+
         self.clearCanvas()
         root = tree.getroot()
-        buttons = root.find('buttons')
-        for btn in buttons:
-            b = self.addButton()
-            self.setButtonData(b, btn.attrib, bindings=1)
-        self.loadImage(image=root.find('bg').get('file'))
-        print 'loading: ' + filename
+        tabs = root.find('tabs')
+        for tab in tabs:
+            t = self.addNewTab(tab.get('label'))
+            self.canvas.setCurrentIndex(t)
+            buttons = tab.find('buttons')
+            for btn in buttons:
+                b = self.addButton()
+                self.setButtonData(b, btn.attrib, bindings=1)
+            self.loadImage(image=tab.find('bg').get('file'))
+            print 'loading: ' + filename
 
     def build(self):
         # get maya main window
@@ -347,6 +378,7 @@ class PickerEditor(QtGui.QWidget):
         self.toolBar = QtGui.QVBoxLayout(self.toolWidget)
 
         # Canvas
+        '''
         self.canvas = QtGui.QWidget()
         self.canvas.setFixedSize(400, 500)
         self.canvas.setAutoFillBackground(True)
@@ -357,8 +389,33 @@ class PickerEditor(QtGui.QWidget):
 
         self.canvasLabel = QtGui.QLabel('', parent=self.canvas)
         self.canvasLabel.setFixedSize(400, 500)
+        '''
+        self.canvas = QtGui.QTabWidget()
+        self.canvas.setFixedSize(400, 520)
+        self.mainHLayout.addWidget(self.canvas)
+
+        self.addNewTab()
 
         # Tool Buttons
+        # Create Tab
+        self.addTab_btn = QtGui.QPushButton('Add Tab')
+        self.addTab_btn.clicked.connect(self.addNewTab)
+        self.toolBar.addWidget(self.addTab_btn)
+
+        # Tab Text
+        self.tabTextLayout = QtGui.QHBoxLayout()
+        self.toolBar.addLayout(self.tabTextLayout)
+        self.tabText = QtGui.QLineEdit()
+        self.tabTextLayout.addWidget(self.tabText)
+        self.renameTab_btn = QtGui.QPushButton('>>>')
+        self.renameTab_btn.clicked.connect(self.renameTab)
+        self.tabTextLayout.addWidget(self.renameTab_btn)
+
+        # Remove Tab
+        self.deleteTab_btn = QtGui.QPushButton('Delete Tab')
+        self.deleteTab_btn.clicked.connect(self.deleteTab)
+        self.toolBar.addWidget(self.deleteTab_btn)
+
         # Create button
         self.addButton_btn = QtGui.QPushButton('Add Button')
         self.addButton_btn.clicked.connect(self.addButton)
@@ -464,7 +521,7 @@ class PickerEditor(QtGui.QWidget):
         self.load_btn = QtGui.QPushButton('Load')
         self.fileLayout.addWidget(self.load_btn)
         self.load_btn.clicked.connect(self.load)
-    
+
         # stretch to push buttons up
         self.toolBar.addStretch(1)
 
@@ -484,8 +541,7 @@ class PickerEditor(QtGui.QWidget):
         self.bind_btn.clicked.connect(self.bind)
 
         self.mainWindow.show()
-        
-        
+
 class Picker(QtGui.QWidget):
     def __init__(self):
         super(Picker, self).__init__()
@@ -493,31 +549,35 @@ class Picker(QtGui.QWidget):
         self.delete()
         self.buttonList = []
         self.selected = []
+        self.tabs = []
         self.build()
-        
+
     def delete(self):
         #check to see if the ui already exists and, if so, delete it
         if cmds.window(self.uiName, exists=True):
             cmds.deleteUI(self.uiName, wnd=True)
-            
+
     def getScenePickers(self):
-        self.pickerPath = 'C:\\Users\\drudd\\Desktop\\UI_TESTS\\'
+        self.pickerPath = os.path.join(os.path.dirname(__file__), 'pickers\\')
         pickers = [f for f in os.listdir(self.pickerPath) if '_picker.xml' in f]
-        scenePickers = [p for p in pickers if cmds.namespace(exists=(':' + p.replace('_picker.xml', '')))]
-        
+        refPickers = [p for p in pickers if cmds.namespace(exists=(':' + p.replace('_picker.xml', '')))]
+        refPickers.append('CAMERA')
+        localPickers = [p for p in pickers if ('|' + p.replace('_picker.xml', '')) in cmds.ls(long=1)]
+        scenePickers = refPickers + localPickers
         return [p.replace('_picker.xml', '') for p in scenePickers]
-    
+
     def setButtonData(self, button, attrDict):
         button.setText(attrDict['text'])
         button.move(int(attrDict['xPos']), int(attrDict['yPos']))
         button.resize(int(attrDict['width']), int(attrDict['height']))
         button.setStyleSheet(attrDict['style'])
+
         button.sceneNode = attrDict['sceneNode']
         button.parentNode = attrDict['parentNode']
         button.mirrorNode = attrDict['mirrorNode']
         button.rigPart = attrDict['rigPart']
         button.defaults = json.loads(attrDict['defaults'])
-    
+
     def selectionChanged(self):
         sender = self.sender()
 
@@ -525,13 +585,14 @@ class Picker(QtGui.QWidget):
 
         if modifiers == QtCore.Qt.NoModifier:
             for b in self.buttonList:
-                print b
                 b.setChecked(0)
             sender.setChecked(1)
 
         self.selected = [b for b in self.buttonList if b.isChecked()]
-        cmds.select([b.sceneNode for b in self.selected if b.sceneNode])
-    
+        selList = [b.sceneNode for b in self.selected if b.sceneNode]
+        if selList:
+            cmds.select(selList)
+
     def addButton(self, parent):
         '''
         called from: self.addButton_btn
@@ -543,21 +604,48 @@ class Picker(QtGui.QWidget):
         self.buttonList.append(b)
         b.clicked.connect(self.selectionChanged)
         return b
-    
+
+    def addNewTab(self, parent, tabName=''):
+        '''
+        Adds a new tab to the canvas
+        '''
+        canvasLabel = QtGui.QLabel('')
+        canvasLabel.setFixedSize(400, 500)
+        canvasLabel.setAutoFillBackground(True)
+        p = canvasLabel.palette()
+        p.setColor(canvasLabel.backgroundRole(), 'white')
+        canvasLabel.setPalette(p)
+        t = parent.addTab(canvasLabel, tabName)
+        self.tabs.append({'tab':t, 'bg':''})
+        return t
+
     def load(self, filename, parent, asset):
+        print filename
         tree = et.parse(filename)
         if not tree:
             return showDialog('File Error', ('File not found: ' + filename))
         root = tree.getroot()
-        buttons = root.find('buttons')
-        for btn in buttons:
-            b = self.addButton(parent)
-            self.setButtonData(b, btn.attrib)
-            b.sceneNode = asset + ':' + b.sceneNode
-        bg = root.find('bg').get('file')
-        if bg:
-            if os.path.exists(bg):
-                parent.setPixmap(QtGui.QPixmap(bg))
+        tabs = root.find('tabs')
+
+        for tab in tabs:
+            t = self.addNewTab(parent = parent, tabName=tab.get('label'))
+            parent.setCurrentIndex(t)
+            panel = parent.currentWidget()
+            buttons = tab.find('buttons')
+            for btn in buttons:
+                b = self.addButton(panel)
+                self.setButtonData(b, btn.attrib)
+
+                # if the asset is in a namespace, add the asset name to the sceneNode
+                if cmds.namespace(exists=(':' + asset)):
+                    b.sceneNode = asset + ':' + b.sceneNode
+
+            bg = tab.find('bg').get('file')
+            if bg:
+                if os.path.exists(bg):
+                    panel.setPixmap(QtGui.QPixmap(bg))
+
+        parent.setCurrentIndex(0)
 
     def zero(self):
         '''
@@ -570,7 +658,58 @@ class Picker(QtGui.QWidget):
                     cmds.setAttr(button.sceneNode + '.' + attr, button.defaults[attr])
         cmds.undoInfo(closeChunk=1)
 
-            
+    def selectAll(self):
+        '''
+        selects all controls that have buttons in the picker
+        '''
+        self.selected = [b for b in self.canvas.currentWidget().currentWidget().children()]
+        for b in self.buttonList:
+            b.setChecked(0)
+        for b in self.selected:
+            b.setChecked(1)
+
+        selList = [b.sceneNode for b in self.selected if b.sceneNode]
+        print selList
+        if selList:
+            cmds.select(selList)
+
+    def getRoot(self, node=None):
+        if not node and len(cmds.ls(sl=1)) > 0:
+            node = cmds.ls(sl=1)[0]
+
+        fullPath = cmds.ls(node, l=1)[0]
+        root = fullPath.split('|')[1]
+        return root
+
+    def getControls(self, root, stringID='CON'):
+        curves = cmds.listRelatives(root, ad=1, type='nurbsCurve')
+        controls = []
+        for curve in curves:
+            parent = cmds.listRelatives(curve, p=1, type='transform')[0]
+            if cmds.attributeQuery('con_category', node=parent, exists=1):
+                if not cmds.listConnections(parent, type='constraint', d=0):
+                    controls.append(parent)
+        return controls
+
+    def selectRig(self):
+        cmds.select(self.getControls(root=self.getRoot()))
+
+    def linkToBlank(self):
+        '''
+        Binds the 'CAM' tab to the namespace of the currently selected camera.
+        '''
+        if not cmds.ls(sl=1):
+            return showDialog('Selection Error', 'Select a rig control to bind')
+        theNameSpace = cmds.ls(sl=1)[0].split(':')[0]
+        if theNameSpace:
+            panel = self.canvas.widget(self.canvas.count() - 1)
+            for index in range(panel.count()):
+                buttons = panel.widget(index).children()
+                self.buttonList = [b for b in self.buttonList if not b in buttons]
+                panel.widget(index).deleteLater()
+            self.canvas.setTabText(self.canvas.count() - 1, theNameSpace)
+            self.load(self.pickerPath + 'CAMERA_picker.xml', panel, theNameSpace)
+
     def build(self):
     # get maya main window
         maya = maya_main_window()
@@ -579,8 +718,8 @@ class Picker(QtGui.QWidget):
         self.mainWindow = QtGui.QMainWindow(maya)
         self.mainWindow.setObjectName(self.uiName)
         self.mainWindow.setWindowTitle('Character Picker')
-        self.mainWindow.setMinimumSize(420, 600)
-        self.mainWindow.setMaximumSize(420, 600)
+        self.mainWindow.setMinimumSize(420, 620)
+        self.mainWindow.setMaximumSize(420, 620)
 
         # create central widget
         self.centralWidget = QtGui.QWidget()
@@ -588,22 +727,38 @@ class Picker(QtGui.QWidget):
 
         # main layout
         self.mainVLayout = QtGui.QVBoxLayout(self.centralWidget)
-        
+
         # Canvas
         self.canvas = QtGui.QTabWidget()
-        self.canvas.setFixedSize(400, 520)
+        self.canvas.setFixedSize(400, 540)
         self.mainVLayout.addWidget(self.canvas)
-        
+
         for asset in self.getScenePickers():
             print 'found asset: ' + asset
-            canvasLabel = QtGui.QLabel('')
-            canvasLabel.setFixedSize(400, 500)
-            t = self.canvas.addTab(canvasLabel, asset)
-            self.load(self.pickerPath +asset+'_picker.xml', canvasLabel, asset)
+            assetTab = QtGui.QTabWidget()
+            assetTab.setFixedSize(400, 520)
+            t = self.canvas.addTab(assetTab, asset)
+            self.canvas.setCurrentIndex(t)
+            self.load(self.pickerPath +asset+'_picker.xml', self.canvas.currentWidget(), asset)
 
-        # Zero button
+        # Select All buttons
+        self.selectAllHLayout = QtGui.QHBoxLayout()
+        self.mainVLayout.addLayout(self.selectAllHLayout)
+        self.all_btn = QtGui.QPushButton('SELECT ALL')
+        self.all_btn.clicked.connect(self.selectAll)
+        self.selectAllHLayout.addWidget(self.all_btn)
+        self.all_rig_btn = QtGui.QPushButton('SELECT RIG')
+        self.all_rig_btn.clicked.connect(self.selectRig)
+        self.selectAllHLayout.addWidget(self.all_rig_btn)
+
+		# Zero button and bind button
+        self.zeroHLayout = QtGui.QHBoxLayout()
+        self.mainVLayout.addLayout(self.zeroHLayout)
         self.zero_btn = QtGui.QPushButton('ZERO')
         self.zero_btn.clicked.connect(self.zero)
-        self.mainVLayout.addWidget(self.zero_btn)
-        
+        self.zeroHLayout.addWidget(self.zero_btn)
+        self.link_btn = QtGui.QPushButton('LINK CAM')
+        self.link_btn.clicked.connect(self.linkToBlank)
+        self.zeroHLayout.addWidget(self.link_btn)
+
         self.mainWindow.show()

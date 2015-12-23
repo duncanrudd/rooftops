@@ -1,0 +1,16 @@
+<?xml version="1.0" ?>
+<picker version="1.0">
+  <tabs>
+    <tab label="">
+      <buttons>
+        <btn defaults="{&quot;translateX&quot;: 0.0, &quot;translateY&quot;: 0.0, &quot;translateZ&quot;: 0.0, &quot;scaleX&quot;: 1.0, &quot;scaleY&quot;: 1.0, &quot;visibility&quot;: true, &quot;rotateX&quot;: 0.0, &quot;rotateY&quot;: 0.0, &quot;rotateZ&quot;: 0.0, &quot;scaleZ&quot;: 1.0, &quot;rotate_parent&quot;: 1}" height="23" mirrorNode="" parentNode="" rigPart="" sceneNode="root_ctrl" style="background-color: rgba(0, 255, 0, 175);" text="" width="301" xPos="50" yPos="460"/>
+        <btn defaults="{&quot;translateX&quot;: 0.0, &quot;translateY&quot;: 0.0, &quot;translateZ&quot;: 0.0}" height="23" mirrorNode="" parentNode="" rigPart="" sceneNode="pos_ctrl" style="background-color: rgba(0, 255, 0, 175);" text="Pos" width="51" xPos="103" yPos="427"/>
+        <btn defaults="{&quot;rotateX&quot;: 0.0, &quot;rotateY&quot;: 0.0, &quot;rotateZ&quot;: 0.0}" height="23" mirrorNode="" parentNode="" rigPart="" sceneNode="rot_ctrl" style="background-color: rgba(0, 255, 0, 175);" text="Rot" width="51" xPos="103" yPos="397"/>
+        <btn defaults="{&quot;translateX&quot;: 0.0, &quot;translateY&quot;: 0.0, &quot;translateZ&quot;: 0.0}" height="23" mirrorNode="" parentNode="" rigPart="" sceneNode="head_offset_ctrl" style="background-color: rgba(255, 255, 0, 175);" text="Pos" width="51" xPos="188" yPos="252"/>
+        <btn defaults="{&quot;rotateX&quot;: 0.0, &quot;rotateY&quot;: 0.0, &quot;rotateZ&quot;: 0.0}" height="23" mirrorNode="" parentNode="" rigPart="" sceneNode="head_ctrl" style="background-color: rgba(255, 255, 0, 175);" text="Rot" width="51" xPos="248" yPos="252"/>
+        <btn defaults="{&quot;translateX&quot;: 0.0, &quot;translateY&quot;: 0.0, &quot;translateZ&quot;: 0.0, &quot;scaleX&quot;: 1.0, &quot;scaleY&quot;: 1.0, &quot;visibility&quot;: true, &quot;rotateX&quot;: 0.0, &quot;rotateY&quot;: 0.0, &quot;rotateZ&quot;: 0.0, &quot;scaleZ&quot;: 1.0}" height="33" mirrorNode="" parentNode="" rigPart="" sceneNode="cam" style="background-color: rgba(255, 255, 0, 175);" text="Cam" width="51" xPos="220" yPos="150"/>
+      </buttons>
+      <bg file="E:/CODE_DEV/rooftops/UI/pickers/CAM_picker_bg.JPG"/>
+    </tab>
+  </tabs>
+</picker>
