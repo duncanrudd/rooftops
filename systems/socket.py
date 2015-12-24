@@ -45,7 +45,7 @@ def build(node=None, targetList=[], targetNames=[], settingsNode=None, point=1, 
         for t in targetNames:
             pointEnumString += (t+':') 
         p = cmds.pointConstraint(targets, const_grp)
-        cmds.addAttr(settingsNode, longName='translate_parent', at='enum', enumName=pointEnumString, keyable=True)
+        cmds.addAttr(settingsNode, longName='%s_translate_parent' % name, at='enum', enumName=pointEnumString, keyable=True)
         # Set driven keys to drive the weights of the targets in the point constraint
         pointWeightAliasList = [ str(w) for w in cmds.pointConstraint( const_grp, q=True, weightAliasList=True ) ]
                 
@@ -63,7 +63,7 @@ def build(node=None, targetList=[], targetNames=[], settingsNode=None, point=1, 
                 cmds.setDrivenKeyframe(
                     p,
                     attribute = attr,
-                    currentDriver = (settingsNode + '.translate_parent'),
+                    currentDriver = (settingsNode + '.%s_translate_parent' % name),
                     driverValue = (spaceIndex),
                     inTangentType = 'linear',
                     outTangentType = 'linear',
@@ -76,7 +76,7 @@ def build(node=None, targetList=[], targetNames=[], settingsNode=None, point=1, 
         for t in targetNames:
             orientEnumString += (t+':') 
         o = cmds.orientConstraint(targets, const_grp)
-        cmds.addAttr(settingsNode, longName='rotate_parent', at='enum', enumName=orientEnumString, keyable=True)
+        cmds.addAttr(settingsNode, longName='%s_rotate_parent' % name, at='enum', enumName=orientEnumString, keyable=True)
         # Set driven keys to drive the weights of the targets in the orient constraint
         orientWeightAliasList = [ str(w) for w in cmds.orientConstraint( const_grp, q=True, weightAliasList=True ) ]
         for spaceIndex in range( len(targetList) ):
@@ -91,7 +91,7 @@ def build(node=None, targetList=[], targetNames=[], settingsNode=None, point=1, 
                 cmds.setDrivenKeyframe(
                     o,
                     attribute = attr,
-                    currentDriver = (settingsNode + '.rotate_parent'),
+                    currentDriver = (settingsNode + '.%s_rotate_parent' % name),
                     driverValue = (spaceIndex),
                     inTangentType = 'linear',
                     outTangentType = 'linear',
