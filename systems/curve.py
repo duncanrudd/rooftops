@@ -78,7 +78,10 @@ def nodesAlongCurve(crv=None, numNodes=6, name='', followAxis='x', upAxis='y', u
         cmds.connectAttr('%s.yCoordinate' % mp, '%s.ty' % n, f=1)
         cmds.connectAttr('%s.zCoordinate' % mp, '%s.tz' % n, f=1)
         
-        cmds.setAttr('%s.uValue' % mp, (1.0 / (numNodes-1))*i)
+        if numNodes != 1:
+            cmds.setAttr('%s.uValue' % mp, (1.0 / (numNodes-1))*i)
+        else:
+            cmds.setAttr('%s.uValue' % mp, 0.5)
         
         returnDict['mpNodes'].append(mp)
         returnDict['grps'].append(n)
@@ -114,6 +117,102 @@ def bindCurve(crv=None):
     cmds.skinCluster(jointList, crv, tsb=1, name='%s_skinCluster' % crv)
     
     return jointList
+
+######################################################################################################################################################
+
+class TangentCurve(object):
+    '''
+    Creates a bezier curve which automatically adjusts its tangents to maintain clean curvature.
+    Creates a control at each point in points with a weight attribute to control tangent lengths
+    If closed == true. Creates a closed curve.
+    '''
+    def __init__(self, points=None, name=''):
+        super(TangentCurve, self).__init__()
+        if points:
+            self.points = points
+        else:
+            self.points = cmds.ls(sl=1)
+        if not self.points:
+            return 'please supply or select at least 3 points to create a tangentCurve'
+        self.name = name
+        self.build()
+
+    def buildSpan(self, points, index):
+        shapes = [cmds.listRelatives(p, c=1, s=1)[0] for p in points]
+        midA = cmds.spaceLocator(name='%s_span_%s_mid_A_loc' % (self.name, str(index)))[0]
+        cmds.pointConstraint(points[0], points[1], midA)
+        midB = cmds.spaceLocator(name='%s_span_%s_mid_B_loc' % (self.name, str(index)))[0]
+        cmds.pointConstraint(points[1], points[2], midB)
+
+        # Create curve and connect curve points
+        crv = curveBetweenNodes(points[0], points[2], '%s_span_%s' % (self.name, str(index)))
+        crvShape = cmds.listRelatives(crv, c=1, s=1)[0]
+        cmds.connectAttr('%s.worldPosition[0]' % shapes[0], '%s.controlPoints[%s]' % (crvShape, 0))
+        cmds.connectAttr('%s.worldPosition[0]' % cmds.listRelatives(midA, c=1, s=1)[0], '%s.controlPoints[%s]' % (crvShape, 1))
+        cmds.connectAttr('%s.worldPosition[0]' % cmds.listRelatives(midB, c=1, s=1)[0], '%s.controlPoints[%s]' % (crvShape, 2))
+        cmds.connectAttr('%s.worldPosition[0]' % shapes[2], '%s.controlPoints[%s]' % (crvShape, 3))
+
+        # Motionpath node
+        mp = nodesAlongCurve(crv, numNodes=1, name='%s_span_%s' % (self.name, str(index)), upNode=points[1])
+        npc = cmds.createNode('nearestPointOnCurve', name='%s_span_%s' % (self.name, str(index)))
+        cmds.connectAttr('%s.worldPosition[0]' % shapes[1], '%s.inPosition' % npc)
+        cmds.connectAttr('%s.worldSpace[0]' % crvShape, '%s.inputCurve' % npc)
+        cmds.connectAttr('%s.parameter' % npc, '%s.uValue' % mp['mpNodes'][0])
+        cmds.setAttr('%s.fractionMode' % mp['mpNodes'][0], 0)
+
+        # Tangents
+        tanGrp = cmds.group(empty=1, name='%s_span_%s_tangent_grp' % (self.name, str(index)))
+        common.align(tanGrp, points[1])
+        cmds.parent(tanGrp, points[1])
+        cmds.orientConstraint(mp['grps'][0], tanGrp)
+
+        inTan_loc = cmds.spaceLocator(name='%s_span_%s_inTangent_loc' % (self.name, str(index)))[0]
+        common.align(inTan_loc, tanGrp)
+        cmds.parent(inTan_loc, tanGrp)
+        inDist = cmds.createNode('distanceBetween', name='%s_span_%s_in_dist' % (self.name, str(index)))
+        cmds.connectAttr('%s.worldPosition[0]' % shapes[0], '%s.point1' % inDist)
+        cmds.connectAttr('%s.worldPosition[0]' % shapes[1], '%s.point2' % inDist)
+
+        outTan_loc = cmds.spaceLocator(name='%s_span_%s_outTangent_loc' % (self.name, str(index)))[0]
+        common.align(outTan_loc, tanGrp)
+        cmds.parent(outTan_loc, tanGrp)
+        outDist = cmds.createNode('distanceBetween', name='%s_span_%s_out_dist' % (self.name, str(index)))
+        cmds.connectAttr('%s.worldPosition[0]' % shapes[1], '%s.point1' % outDist)
+        cmds.connectAttr('%s.worldPosition[0]' % shapes[2], '%s.point2' % outDist)
+
+        weight_md = cmds.createNode('multiplyDivide', name='%s_span_%s_weight_md' % (self.name, str(index)))
+        cmds.connectAttr('%s.distance' % inDist, '%s.input1X' % weight_md)
+        cmds.connectAttr('%s.distance' % outDist, '%s.input1Y' % weight_md)
+        cmds.setAttr('%s.input2X' % weight_md, 0.33)
+        cmds.setAttr('%s.input2Y' % weight_md, 0.33)
+
+        weight_uc = cmds.createNode('unitConversion', name='%s_span_%s_weight_invert_uc' % (self.name, str(index)))
+        cmds.setAttr('%s.conversionFactor' % weight_uc, -1.0)
+        cmds.connectAttr('%s.outputX' % weight_md, '%s.input' % weight_uc)
+
+        cmds.connectAttr('%s.outputY' % weight_md, '%s.tx' % outTan_loc)
+        cmds.connectAttr('%s.output' % weight_uc, '%s.tx' % inTan_loc)
+
+        return{
+            'inTan':inTan_loc,
+            'outTan':outTan_loc,
+            'inDist':inDist,
+            'outDist':outDist,
+        }
+
+
+    def build(self):
+        numSpans = len(self.points)-2
+        self.cv_locs = []
+        self.spans = []
+        for i in range(len(self.points)):
+            loc = cmds.spaceLocator(name = '%s_cv_%s_loc' % (self.name, str(i)))[0]
+            common.align(loc, self.points[i])
+            self.cv_locs.append(loc)
+        for i in range(numSpans):
+            self.spans.append(self.buildSpan(self.cv_locs[i:i+3], i))
+
+
         
         
     

@@ -686,7 +686,8 @@ class Picker(QtGui.QWidget):
         controls = []
         for curve in curves:
             parent = cmds.listRelatives(curve, p=1, type='transform')[0]
-            if cmds.attributeQuery('con_category', node=parent, exists=1):
+            #if cmds.attributeQuery('con_category', node=parent, exists=1):
+            if parent.endswith('_ctrl'):
                 if not cmds.listConnections(parent, type='constraint', d=0):
                     controls.append(parent)
         return controls
