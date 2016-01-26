@@ -88,7 +88,31 @@ def nodesAlongCurve(crv=None, numNodes=6, name='', followAxis='x', upAxis='y', u
         
     return returnDict
         
-        
+######################################################################################################################################################
+
+def curveThroughPoints(points=None, name='', bezier=0):
+    if not points:
+        points = cmds.ls(sl=1, type='transform')
+
+    positions = [cmds.xform(p, q=1, ws=1, t=1) for p in points]
+
+    if len(positions) < 4:
+        return 'Please supply at least 4 points'
+
+    numKnots = len(positions) + 2
+    knots = []
+
+    for i in range(numKnots):
+        if i < 2:
+            knots.append(0)
+        elif i > numKnots - 3:
+            knots.append(numKnots - 5)
+        else:
+            knots.append(i-2)
+
+    crv = cmds.curve(bezier=bezier, d=3, p=positions, k=knots, name='%s_crv' % name)
+    return crv
+
 ######################################################################################################################################################
 
 def bindCurve(crv=None):
@@ -126,7 +150,7 @@ class TangentCurve(object):
     Creates a control at each point in points with a weight attribute to control tangent lengths
     If closed == true. Creates a closed curve.
     '''
-    def __init__(self, points=None, name=''):
+    def __init__(self, points=None, name='', closed=False):
         super(TangentCurve, self).__init__()
         if points:
             self.points = points
@@ -135,6 +159,7 @@ class TangentCurve(object):
         if not self.points:
             return 'please supply or select at least 3 points to create a tangentCurve'
         self.name = name
+        self.closed = closed
         self.build()
 
     def buildSpan(self, points, index):
@@ -183,8 +208,8 @@ class TangentCurve(object):
         weight_md = cmds.createNode('multiplyDivide', name='%s_span_%s_weight_md' % (self.name, str(index)))
         cmds.connectAttr('%s.distance' % inDist, '%s.input1X' % weight_md)
         cmds.connectAttr('%s.distance' % outDist, '%s.input1Y' % weight_md)
-        cmds.setAttr('%s.input2X' % weight_md, 0.33)
-        cmds.setAttr('%s.input2Y' % weight_md, 0.33)
+        cmds.setAttr('%s.input2X' % weight_md, 0.25)
+        cmds.setAttr('%s.input2Y' % weight_md, 0.25)
 
         weight_uc = cmds.createNode('unitConversion', name='%s_span_%s_weight_invert_uc' % (self.name, str(index)))
         cmds.setAttr('%s.conversionFactor' % weight_uc, -1.0)
@@ -212,6 +237,64 @@ class TangentCurve(object):
         for i in range(numSpans):
             self.spans.append(self.buildSpan(self.cv_locs[i:i+3], i))
 
+        if not self.closed:
+            # Build start tangent
+            tanGrp = cmds.group(empty=1, name='%s_start_tangent_grp' % self.name)
+            common.align(tanGrp, self.cv_locs[0])
+            cmds.parent(tanGrp, self.cv_locs[0])
+            cmds.aimConstraint(self.spans[0]['inTan'], tanGrp, wut='objectrotation', wuo=self.cv_locs[0])
+
+            outTan_loc = cmds.spaceLocator(name='%s_start_outTangent_loc' % self.name)[0]
+            common.align(outTan_loc, tanGrp)
+            cmds.parent(outTan_loc, tanGrp)
+
+            weight_md = cmds.createNode('multiplyDivide', name='%s_start_weight_md' % self.name)
+            cmds.connectAttr('%s.distance' % self.spans[0]['inDist'], '%s.input1X' % weight_md)
+            cmds.setAttr('%s.input2X' % weight_md, 0.33)
+
+            cmds.connectAttr('%s.outputX' % weight_md, '%s.tx' % outTan_loc)
+
+            # Build end tangent
+            tanGrp = cmds.group(empty=1, name='%s_end_tangent_grp' % self.name)
+            common.align(tanGrp, self.cv_locs[-1])
+            cmds.parent(tanGrp, self.cv_locs[-1])
+            cmds.aimConstraint(self.spans[-1]['outTan'], tanGrp, wut='objectrotation', wuo=self.cv_locs[-1])
+
+            inTan_loc = cmds.spaceLocator(name='%s_end_inTangent_loc' % self.name)[0]
+            common.align(inTan_loc, tanGrp)
+            cmds.parent(inTan_loc, tanGrp)
+
+            weight_md = cmds.createNode('multiplyDivide', name='%s_endt_weight_md' % self.name)
+            cmds.connectAttr('%s.distance' % self.spans[-1]['outDist'], '%s.input1X' % weight_md)
+            cmds.setAttr('%s.input2X' % weight_md, 0.33)
+
+            cmds.connectAttr('%s.outputX' % weight_md, '%s.tx' % inTan_loc)
+
+            self.spans.append({
+                'endTan':inTan_loc,
+                'startTan':outTan_loc,
+            })
+
+            # Collect points for curve
+            self.crv_points = [self.cv_locs[0], self.spans[-1]['startTan']]
+            for i in range(len(self.spans)-1):
+                self.crv_points.append(self.spans[i]['inTan'])
+                #self.crv_points.append(self.cv_locs[i+1])
+                self.crv_points.append(self.spans[i]['outTan'])
+            self.crv_points.append(self.spans[-1]['endTan'])
+            self.crv_points.append(self.cv_locs[-1])
+
+            # Create curve and connect points
+            self.crv = curveThroughPoints(points=self.crv_points, name=self.name)
+
+
+            for i in range(len(self.crv_points)):
+                crvShape = cmds.listRelatives(self.crv, c=1, s=1)[0]
+                cmds.connectAttr('%s.worldPosition[0]' % self.crv_points[i], '%s.controlPoints[%s]' % (crvShape, i))
+
+        else:
+            self.spans.append(self.buildSpan([self.cv_locs[-2], self.cv_locs[-1], self.cv_locs[0]], numSpans + 1))
+            self.spans.append(self.buildSpan([self.cv_locs[-2], self.cv_locs[-1], self.cv_locs[0]], numSpans + 2))
 
         
         
