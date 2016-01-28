@@ -163,14 +163,18 @@ class TangentCurve(object):
         self.build()
 
     def buildSpan(self, points, index):
+        main_grp = cmds.group(empty=1, name='%s_span_%s_grp' % (self.name, str(index)))
         shapes = [cmds.listRelatives(p, c=1, s=1)[0] for p in points]
         midA = cmds.spaceLocator(name='%s_span_%s_mid_A_loc' % (self.name, str(index)))[0]
         cmds.pointConstraint(points[0], points[1], midA)
+        cmds.parent(midA, main_grp)
         midB = cmds.spaceLocator(name='%s_span_%s_mid_B_loc' % (self.name, str(index)))[0]
         cmds.pointConstraint(points[1], points[2], midB)
+        cmds.parent(midB, main_grp)
 
         # Create curve and connect curve points
         crv = curveBetweenNodes(points[0], points[2], '%s_span_%s' % (self.name, str(index)))
+        cmds.parent(crv, main_grp)
         crvShape = cmds.listRelatives(crv, c=1, s=1)[0]
         cmds.connectAttr('%s.worldPosition[0]' % shapes[0], '%s.controlPoints[%s]' % (crvShape, 0))
         cmds.connectAttr('%s.worldPosition[0]' % cmds.listRelatives(midA, c=1, s=1)[0], '%s.controlPoints[%s]' % (crvShape, 1))
@@ -184,6 +188,7 @@ class TangentCurve(object):
         cmds.connectAttr('%s.worldSpace[0]' % crvShape, '%s.inputCurve' % npc)
         cmds.connectAttr('%s.parameter' % npc, '%s.uValue' % mp['mpNodes'][0])
         cmds.setAttr('%s.fractionMode' % mp['mpNodes'][0], 0)
+        cmds.parent(mp['grps'][0], main_grp)
 
         # Tangents
         tanGrp = cmds.group(empty=1, name='%s_span_%s_tangent_grp' % (self.name, str(index)))
@@ -218,15 +223,27 @@ class TangentCurve(object):
         cmds.connectAttr('%s.outputY' % weight_md, '%s.tx' % outTan_loc)
         cmds.connectAttr('%s.output' % weight_uc, '%s.tx' % inTan_loc)
 
+        # weight attribute to control tangent lengths
+        self.addWeightAttr(node=points[1], md=weight_md)
+
         return{
             'inTan':inTan_loc,
             'outTan':outTan_loc,
             'inDist':inDist,
             'outDist':outDist,
+            'weight_md':weight_md,
+            'main_grp':main_grp,
         }
+
+    def addWeightAttr(self, node, md):
+        cmds.addAttr(node, ln='tangentWeight', at="float", minValue=0.0, maxValue=1.0, keyable=1, hidden=0, defaultValue=0.25 )
+        cmds.connectAttr('%s.tangentWeight' % node, '%s.input2X' % md)
+        cmds.connectAttr('%s.tangentWeight' % node, '%s.input2Y' % md)
 
 
     def build(self):
+        self.dnt_grp = cmds.group(empty=1, name='%s_doNotTouch' % self.name)
+        cmds.setAttr('%s.inheritsTransform' % self.dnt_grp, 0)
         numSpans = len(self.points)-2
         self.cv_locs = []
         self.spans = []
@@ -235,7 +252,9 @@ class TangentCurve(object):
             common.align(loc, self.points[i])
             self.cv_locs.append(loc)
         for i in range(numSpans):
-            self.spans.append(self.buildSpan(self.cv_locs[i:i+3], i))
+            span = self.buildSpan(self.cv_locs[i:i+3], i)
+            cmds.parent(span['main_grp'], self.dnt_grp)
+            self.spans.append(span)
 
         if not self.closed:
             # Build start tangent
@@ -254,6 +273,8 @@ class TangentCurve(object):
 
             cmds.connectAttr('%s.outputX' % weight_md, '%s.tx' % outTan_loc)
 
+            self.addWeightAttr(self.cv_locs[0], weight_md)
+
             # Build end tangent
             tanGrp = cmds.group(empty=1, name='%s_end_tangent_grp' % self.name)
             common.align(tanGrp, self.cv_locs[-1])
@@ -269,6 +290,8 @@ class TangentCurve(object):
             cmds.setAttr('%s.input2X' % weight_md, 0.33)
 
             cmds.connectAttr('%s.outputX' % weight_md, '%s.tx' % inTan_loc)
+
+            self.addWeightAttr(self.cv_locs[-1], weight_md)
 
             self.spans.append({
                 'endTan':inTan_loc,
@@ -286,6 +309,7 @@ class TangentCurve(object):
 
             # Create curve and connect points
             self.crv = curveThroughPoints(points=self.crv_points, name=self.name)
+            cmds.parent(self.crv, self.dnt_grp)
 
 
             for i in range(len(self.crv_points)):
