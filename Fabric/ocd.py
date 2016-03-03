@@ -1,5 +1,4 @@
 import pymel.core as pmc
-import maya.mel as mel
 import maya.OpenMaya as om
 
 def createSegment(ctrls=None, samples=12, name=''):
@@ -11,17 +10,14 @@ def createSegment(ctrls=None, samples=12, name=''):
     pushes = []
     ports=[]
     for c in range(len(ctrls)):
-        cmd = 'FabricCanvasInstPreset -m "%s" -e "" -p "Fabric.Exts.Math.Constants.Vec3" -x "%s" -y "%s";' % (cn.getName(), c*300, c*100)
-        v = mel.eval(cmd)
+        v = pmc.FabricCanvasInstPreset(m=cn.getName(), e='', p='Fabric.Exts.Math.Constants.Vec3', x=c*300, y=c*100)
         vec3s.append(v)
 
-        cmd = 'FabricCanvasInstPreset -m "%s" -e "" -p "Fabric.Core.Array.Push" -x "%s" -y "%s";' % (cn.getName(), c*300+150, c*100)
-        p = mel.eval(cmd)
+        p = pmc.FabricCanvasInstPreset(m=cn.getName(), e='', p='Fabric.Core.Array.Push', x=c*300+150, y=c*100)
         pushes.append(p)
 
         # create ports
-        cmd = 'FabricCanvasAddPort -m "%s" -e "" -d "ctrl_%s" -p "In" -t "Vec3";' % (cn.getName(), c+1)
-        port = mel.eval(cmd)
+        port = pmc.FabricCanvasAddPort(m=cn.getName(), e='', d='ctrl_%s' % str(c+1), p='In', t='Vec3')
         ports.append(port)
 
         # get world space of control by creating a decompose matrix node and connecting it to the control's world matrix
@@ -33,27 +29,28 @@ def createSegment(ctrls=None, samples=12, name=''):
         else:
             dMat = con[0]
 
+
         # Make connections
         pmc.connectAttr('%s.outputTranslate' % dMat, '%s.ctrl_%s' %(cn.getName(), c+1))
 
-        cmd = 'FabricCanvasConnect -m "%s" -e "" -s "%s" -d "%s.value";' % (cn.getName(), port, v)
-        mel.eval(cmd)
+        pmc.FabricCanvasConnect(m=cn.getName(), e='', s=port, d='%s.value' % v)
 
-        cmd = 'FabricCanvasConnect -m "%s" -e "" -s "%s.value" -d "%s.element";' % (cn.getName(), v, p)
-        mel.eval(cmd)
+        pmc.FabricCanvasConnect(m=cn.getName(), e='', s='%s.value' % v, d='%s.element' % p)
 
         if c > 0:
-            cmd = 'FabricCanvasConnect -m "%s" -e "" -s "%s.array" -d "%s.array";' % (cn.getName(), pushes[c-1], p)
-            mel.eval(cmd)
+            pmc.FabricCanvasConnect(m=cn.getName(), e='', s='%s.array' % pushes[c-1], d='%s.array' % p)
 
-    # create segment preset
-    #cmd = 'FabricCanvasInstPreset -m "%s" -e "" -p "Fabric.Presets.User.segment" -x "%s";' % (cn.getName(), (len(ctrls)+1)*300)
-    #s = mel.eval(cmd)
+    # create segment preset + associated ports / connections
+    s = pmc.FabricCanvasInstPreset(m=cn.getName(), e='', p='User.curveSampler', x=(len(ctrls)+1)*300, y=100)
+    pmc.FabricCanvasConnect(m=cn.getName(), e='', s='%s.array' % pushes[-1], d='%s.ctrls' % s)
 
-    #cmd = 'FabricCanvasConnect -m "%s" -e "" -s "%s.array" -d "%s.ctrls";' % (cn.getName(), pushes[-1], s)
-    #mel.eval(cmd)
+    samplesPort = pmc.FabricCanvasAddPort(m=cn.getName(), e='', d='samples', p='In', t='UInt32')
+    pmc.FabricCanvasConnect(m=cn.getName(), e='', s=samplesPort, d='%s.samples' % s)
 
-    return {'canvasNode':cn, 'vec3s':vec3s, 'pushes':pushes, 'ports':ports}
+    resultPort = pmc.FabricCanvasAddPort(m=cn.getName(), e='', d='result', p='Out', t='Vec3[]')
+    pmc.FabricCanvasConnect(m=cn.getName(), e='', s='%s.result' % s, d=resultPort)
 
 
-#seg = createSegment(ctrls=pmc.selected(type='transform'), name='chain_1_a')
+    return {'canvasNode':cn, 'vec3s':vec3s, 'pushes':pushes}
+
+seg = createSegment(ctrls=pmc.selected(type='transform'), name='chain_1_a')
