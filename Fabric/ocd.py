@@ -1,6 +1,14 @@
 import pymel.core as pmc
 import maya.OpenMaya as om
 
+opaqueDict = '{"uiHidden" : "","uiOpaque" : "true","uiPersistValue" : "","uiRange" : "","uiHardRange" : "","uiCombo" : ""}'
+
+def MVectorFromList(list):
+    '''
+    takes a list of 3 floats and returns an MVector using those values
+    '''
+    return om.MVector(list[0], list[1], list[2])
+
 class Ocd_Segment(object):
     def __init__(self, ctrls=None, samples=12, name=''):
         super(Ocd_Segment, self).__init__()
@@ -11,8 +19,8 @@ class Ocd_Segment(object):
         self.pushes = []
         self.ports=[]
         self.build()
-    
-    def build(self):    
+
+    def build(self):
         # Create canvas node
         self.cn = pmc.createNode('canvasNode', name=self.name)
 
@@ -56,7 +64,7 @@ class Ocd_Segment(object):
         pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s=self.samplesPort, d='%s.samples' % self.sampler)
         pmc.setAttr('%s.samples' % self.cn.getName(), self.samples)
 
-        self.resultPort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='result', p='Out', t='Vec3[]')
+        self.resultPort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='result', p='Out', ui=opaqueDict, t='Vec3[]')
         pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.result' % self.sampler, d=self.resultPort)
 
 
@@ -66,8 +74,47 @@ class Ocd_Chain(object):
         self.name=name
         self.segments=[]
         self.pushes=[]
+        self.bends=[]
+        self.bendPushes=[]
+        self.cmpVecs=[]
+        self.cmpVecPushes=[]
 
         self.build()
+
+    def addJoint(self, segment):
+        '''
+        Adds a Float32 node which is pushed into an array and describes the initial bend state of a joint.
+        Adds a Vec3 node which is pushed into an array and describes the initial compression vector.
+        '''
+        b = pmc.FabricCanvasInstPreset(m=self.cn.getName(), e='', p='Fabric.Core.Constants.Float32', x=len(self.bends)*300+100, y=len(self.bends)*100+300)
+        p = pmc.FabricCanvasInstPreset(m=self.cn.getName(), e='', p='Fabric.Core.Array.Push', x=len(self.bends)*300+250, y=len(self.bends)*100+350)
+        pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.value' % b, d='%s.element' % p)
+        if self.bendPushes:
+            pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.array' % self.bendPushes[-1], d='%s.array' % p)
+        pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.array' % p, d='%s.initBends' % self.chain)
+
+        self.bends.append(b)
+        self.bendPushes.append(p)
+
+        c = pmc.FabricCanvasInstPreset(m=self.cn.getName(), e='', p='Fabric.Exts.Math.Constants.Vec3', x=len(self.bends)*300+100, y=len(self.bends)*100+600)
+        p = pmc.FabricCanvasInstPreset(m=self.cn.getName(), e='', p='Fabric.Core.Array.Push', x=len(self.bends)*300+250, y=len(self.bends)*100+650)
+        pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.value' % c, d='%s.element' % p)
+        if self.cmpVecPushes:
+            pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.array' % self.cmpVecPushes[-1], d='%s.array' % p)
+        pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.array' % p, d='%s.initCmpVecs' % self.chain)
+
+        self.cmpVecs.append(c)
+        self.cmpVecPushes.append(p)
+
+
+
+    def initJoints(self):
+        bends = pmc.getAttr('%s.bends' % self.cn.getName())
+        cmpVecs = [pmc.getAttr('%s.cmpVecs[%s]' % (self.cn.getName(), i)) for i in range(len(bends))]
+        for j in range(len(self.bends)):
+            pmc.FabricCanvasSetPortDefaultValue(m=self.cn.getName(), e='', p='%s.value' % self.bends[j], t='Scalar', v=bends[j])
+            vecDict = '{"x":%s, "y":%s, "z":%s}' % (cmpVecs[j][0], cmpVecs[j][1], cmpVecs[j][2])
+            pmc.FabricCanvasSetPortDefaultValue(m=self.cn.getName(), e='', p='%s.value' % self.cmpVecs[j], t='Vec3', v=vecDict)
 
     def addSegment(self, segment):
         '''
@@ -76,13 +123,15 @@ class Ocd_Chain(object):
         p = pmc.FabricCanvasInstPreset(m=self.cn.getName(), e='', p='Fabric.Core.Array.Push', x=len(self.pushes)*300+100, y=len(self.pushes)*100+100)
 
         # Create input port and connections
-        port = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d=segment.name, p='In', t='Vec3[]', c='%s.element' % p)
-        pmc.connectAttr('%s.result[0]' % segment.name, '%s.%s[0]' % (self.cn.getName(), port))
+        port = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d=segment.name, p='In', ui=opaqueDict, t='Vec3[]')
+        pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s=port, d='%s.element' % p)
+        pmc.connectAttr('%s.result' % segment.name, '%s.%s' % (self.cn.getName(), port))
         pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.array' % p, d='%s.positions' % self.chain)
         if self.pushes:
             pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.array' % self.pushes[-1], d='%s.array' % p)
 
         self.pushes.append(p)
+        self.segments.append(segment)
 
     def build(self):
         # Create canvas node
@@ -92,10 +141,14 @@ class Ocd_Chain(object):
         self.chain = pmc.FabricCanvasInstPreset(m=self.cn.getName(), e='', p='User.chain', x=500, y=100)
         self.bendsPort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='bends', p='Out', t='Float32[]', c='%s.bends' % self.chain)
         self.cmpVecsPort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='cmpVecs', p='Out', t='Vec3[]', c='%s.cmpVecs' % self.chain)
-        self.xfosPort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='xfos', p='Out', ui='{"uiHidden" : "","uiOpaque" : "true","uiPersistValue" : "","uiRange" : "","uiHardRange" : "","uiCombo" : ""}', t='Vec3[]')
-        pmc.FabricCanvasEditPort(m=self.cn.getName(), e="", n="xfos", d="xfos", t="Xfo[]")
+        self.xfosPort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='xfos', p='Out', ui=opaqueDict, t='Vec3[]')
+        pmc.FabricCanvasEditPort(m=self.cn.getName(), e="", n="xfos", d="xfos", t="Xfo[][]")
+        pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.xfos' % self.chain, d=self.xfosPort)
+        self.basePort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='base_matrix', p='In', t='Mat44', c='%s.baseMat' % self.chain)
 
+seg = Ocd_Segment(ctrls=pmc.selected(type='transform'), name='seg_2')
+chain = Ocd_Chain(name='chain_1')
+chain.addSegment(seg)
+chain.addJoint(seg)
 
-#seg = Ocd_Segment(ctrls=pmc.selected(type='transform'), name='seg_1')
-#chain = Ocd_Chain(name='chain_1')
-#chain.addSegment(seg)
+chain.initJoints()
