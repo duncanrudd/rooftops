@@ -116,6 +116,8 @@ class Ocd_Chain(object):
             vecDict = '{"x":%s, "y":%s, "z":%s}' % (cmpVecs[j][0], cmpVecs[j][1], cmpVecs[j][2])
             pmc.FabricCanvasSetPortDefaultValue(m=self.cn.getName(), e='', p='%s.value' % self.cmpVecs[j], t='Vec3', v=vecDict)
 
+        pmc.FabricCanvasSetPortDefaultValue(m=self.cn.getName(), e='', p='%s.value' % self.initBool, t='Boolean', v='true')
+
     def addSegment(self, segment):
         '''
         expects an instance of Ocd_Segment passed as 'segmemnt'
@@ -146,7 +148,12 @@ class Ocd_Chain(object):
         pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.xfos' % self.chain, d=self.xfosPort)
         self.basePort = pmc.FabricCanvasAddPort(m=self.cn.getName(), e='', d='base_matrix', p='In', t='Mat44', c='%s.baseMat' % self.chain)
 
-seg = Ocd_Segment(ctrls=pmc.selected(type='transform'), name='seg_2')
+        # Create boolean node - When initial joint values are available,
+        # set this to true so bends/compression can be evaluated based on an initial state
+        self.initBool = pmc.FabricCanvasInstPreset(m=self.cn.getName(), e='', p='Fabric.Core.Constants.Boolean', x=300, y=100)
+        pmc.FabricCanvasConnect(m=self.cn.getName(), e='', s='%s.value' % self.initBool, d='%s.init' % self.chain)
+
+seg = Ocd_Segment(ctrls=pmc.selected(type='transform'), name='seg_1')
 chain = Ocd_Chain(name='chain_1')
 chain.addSegment(seg)
 chain.addJoint(seg)
