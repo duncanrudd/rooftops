@@ -333,24 +333,16 @@ def getPyNode(node):
     pynode=pmc.ls(node)[0]
     return pynode
 
-def blendVectors(vec1, vec2, name, driver=None):
-    '''
-    creates a blendColors node with vec1 and vec2 as inputs
-    if supplied, connects the blender attribute to the driver attribute
-    '''
-    bc = pmc.createNode('blendColors', name='%s_bc' % name)
-    pmc.connectAttr(vec1, bc.color1)
-    pmc.connectAttr(vec2, bc.color2)
-    if driver:
-        pmc.connectAttr(driver, bc.blender)
-    return bc
 
 class CompressSegment(object):
     '''
-    startVec, endVec and normalVec should be passed in as attributes to which things can be connected
+    Using an upperarm as an example:
+        start would be a node orient constrained between the shoulder and the upArm nonRoll
+        end would be a node orient constrained between the lowArm nonRoll and the upArm nonRoll
+        base would be the shoulder
 
     '''
-    def __init__(self, startVec, endVec, normalVec, crv=None, name='', samples=6, twistAttr=None):
+    def __init__(self, start, end, base, crv=None, name='', samples=8, twistAttr=None, lockToStart=1, lockToEnd=1):
         super(CompressSegment, self).__init__()
         self.name=name
         self.crv=None
@@ -358,131 +350,111 @@ class CompressSegment(object):
             self.crv = getPyNode(crv)
             self.crvShape = pmc.listRelatives(self.crv, c=1, s=1)[0]
 
-        self.build(startVec, endVec, normalVec, samples, twistAttr)
+        self.build(start, end, base, samples, twistAttr, lockToStart, lockToEnd)
 
-    def build(self, startVec, endVec, normalVec, samples, twistAttr):
-        if self.crv:
-            for i in range(samples):
-                param = 1.0 / (samples+1) * (i+1)
+    def build(self, start, end, base, samples, twistAttr, lockToStart, lockToEnd):
 
-                loc = pmc.spaceLocator(name='%s_%s_loc' % (self.name, i+1))
-                #loc.rotateOrder.set(1)
+        self.main_grp = pmc.group(empty=1, name='%s_grp' % self.name)
 
+        for i in range(samples):
+            param = 0.0
+            if lockToStart and lockToEnd:
+                param = 1.0 / (samples-1) * i
+            elif lockToStart:
+                param = 1.0 / (samples) * i
+            elif lockToEnd:
+                param = 1.0 / (samples) * (i+1)
+
+            loc = pmc.spaceLocator(name='%s_%s_loc' % (self.name, i+1))
+            scale_grp = pmc.group(empty=1, name='%s_%s_scale_grp' % (self.name, i+1))
+
+            grp = pmc.group(empty=1, name='%s_%s_grp' % (self.name, i+1))
+            grp.setParent(self.main_grp)
+            loc.setParent(grp)
+            scale_grp.setParent(loc)
+
+            if self.crv:
                 mp = pmc.createNode('motionPath', name='%s_%s_mp' % (self.name, i+1))
-                mp.follow.set(1)
                 mp.fractionMode.set(1)
-                mp.frontAxis.set(0)
-                mp.upAxis.set(1)
                 mp.uValue.set(param)
-                pmc.connectAttr(normalVec, mp.worldUpVector)
                 self.crvShape.worldSpace[0].connect(mp.geometryPath)
-
-                grp = pmc.group(empty=1, name='%s_%s_grp' % (self.name, i+1))
-                loc.setParent(grp)
                 mp.allCoordinates.connect(grp.t)
-                mp.rotate.connect(grp.r)
-                grp.inheritsTransform.set(1)
+                grp.inheritsTransform.set(0)
+            else:
+                const = pmc.pointConstraint(base, end, loc)
+                pmc.pointConstraint(base, loc, e=1, w=(1.0 - param))
+                pmc.pointConstraint(end, loc, e=1, w=param)
 
-                startEndBc = blendVectors(endVec, startVec, '%s_%s_startEnd' % (self.name, i+1))
-                mp.uValue.connect(startEndBc.blender)
-
-                # Construct matrix
-                bridgeVp = pmc.createNode('vectorProduct', name='%s_%s_bridge_vp' % (self.name, i+1))
-                bridgeVp.operation.set(2)
-                pmc.connectAttr(normalVec, bridgeVp.input1)
-                startEndBc.output.connect(bridgeVp.input2)
-                bridgeVp.normalizeOutput.set(1)
-
-                yVp = pmc.createNode('vectorProduct', name='%s_%s_y_vp' % (self.name, i+1))
-                yVp.operation.set(2)
-                startEndBc.output.connect(yVp.input1)
-                bridgeVp.output.connect(yVp.input2)
-                yVp.normalizeOutput.set(1)
-
-                zVp = pmc.createNode('vectorProduct', name='%s_%s_z_vp' % (self.name, i+1))
-                zVp.operation.set(2)
-                startEndBc.output.connect(zVp.input1)
-                yVp.output.connect(zVp.input2)
-                zVp.normalizeOutput.set(1)
-
-                mat = pmc.createNode('fourByFourMatrix', name='%s_%s_matrix' % (self.name, i+1))
-                startEndBc.outputR.connect(mat.in00)
-                startEndBc.outputG.connect(mat.in01)
-                startEndBc.outputB.connect(mat.in02)
-
-                yVp.outputX.connect(mat.in10)
-                yVp.outputY.connect(mat.in11)
-                yVp.outputZ.connect(mat.in12)
-
-                zVp.outputX.connect(mat.in20)
-                zVp.outputY.connect(mat.in21)
-                zVp.outputZ.connect(mat.in22)
-
-                multMat = pmc.createNode('multMatrix',  name='%s_%s_multMatrix' % (self.name, i+1))
-                mat.output.connect(multMat.matrixIn[0])
-                grp.worldInverseMatrix[0].connect(multMat.matrixIn[1])
-
-                twistUC = pmc.createNode('unitConversion', name='%s_%s_twist_uc' % (self.name, i+1))
-                twistUC.conversionFactor.set(param)
-
-                pmc.select(loc)
-                j = pmc.joint(name='%s_%s_jnt' % (self.name, i+1))
-
-                dMat = pmc.createNode('decomposeMatrix', name='%s_%s_decomposeMatrix' % (self.name, i+1))
-                multMat.matrixSum.connect(dMat.inputMatrix)
-                #dMat.inputRotateOrder.set(1)
-                dMat.outputRotate.connect(loc.r)
-                twistUC.output.connect(j.rx)
-                if twistAttr:
-                    pmc.connectAttr(twistAttr, twistUC.input)
-
-                # Set up scaling
-                pmc.addAttr(grp, ln='volume_hold', at='float', keyable=1, hidden=0, minValue=0.0, maxValue=1.0)
-
-                # Y
-                yScaleBlend = pmc.createNode('blendTwoAttr', name='%s_%s_yScale_blend' % (self.name, i+1))
-                grp.volume_hold.connect(yScaleBlend.attributesBlender)
-                yScaleBlend.output.connect(loc.sy)
-
-                yScaleMd = pmc.createNode('multiplyDivide', name='%s_%s_yScale_md' % (self.name, i+1))
-                yScaleMd.operation.set(2)
-                yScaleMd.input1X.set(1.0)
-                yScaleMd.input1Y.set(1.0)
-                yScaleMd.input1Z.set(1.0)
-                yScaleMd.outputX.connect(yScaleBlend.input[0])
-                yScaleMd.outputY.connect(yScaleBlend.input[1])
-
-                yScaleVp = pmc.createNode('vectorProduct', name='%s_%s_yScale_vp' % (self.name, i+1))
-                yScaleVp.operation.set(3)
-                multMat.matrixSum.connect(yScaleVp.matrix)
-                yScaleVp.input1X.set(0.0)
-                yScaleVp.input1Y.set(1.0)
-                yScaleVp.input1Z.set(0.0)
-                yScaleVp.outputY.connect(yScaleMd.input2Y)
-
-                # Z
-                zScaleBlend = pmc.createNode('blendTwoAttr', name='%s_%s_zScale_blend' % (self.name, i+1))
-                grp.volume_hold.connect(zScaleBlend.attributesBlender)
-                zScaleBlend.output.connect(loc.sz)
-
-                zScaleMd = pmc.createNode('multiplyDivide', name='%s_%s_zScale_md' % (self.name, i+1))
-                zScaleMd.operation.set(2)
-                zScaleMd.input1X.set(1.0)
-                zScaleMd.input1Y.set(1.0)
-                zScaleMd.input1Z.set(1.0)
-                zScaleMd.outputX.connect(zScaleBlend.input[0])
-                zScaleMd.outputZ.connect(zScaleBlend.input[1])
-
-                zScaleVp = pmc.createNode('vectorProduct', name='%s_%s_zScale_vp' % (self.name, i+1))
-                zScaleVp.operation.set(3)
-                multMat.matrixSum.connect(zScaleVp.matrix)
-                zScaleVp.input1X.set(0.0)
-                zScaleVp.input1Y.set(0.0)
-                zScaleVp.input1Z.set(1.0)
-                zScaleVp.outputZ.connect(zScaleMd.input2Z)
+            pmc.orientConstraint(start, grp)
 
 
-#testSeg = CompressSegment('upArm_tangent_vp.output', 'lowArm_tangent_vp.output', 'upArm_normal_vp.output', crv='upArm_crv', twistAttr='lowArm_nonRoll_info.rx')
+            const = pmc.orientConstraint(base, end, loc)
+            const.interpType.set(2)
+            pmc.orientConstraint(base, loc, e=1, w=(1.0 - param))
+            pmc.orientConstraint(end, loc, e=1, w=param)
+
+            twistUC = pmc.createNode('unitConversion', name='%s_%s_twist_uc' % (self.name, i+1))
+            twistUC.conversionFactor.set(param)
+
+            pmc.select(scale_grp)
+            j = pmc.joint(name='%s_%s_jnt' % (self.name, i+1))
+
+            twistUC.output.connect(j.rx)
+            if twistAttr:
+                pmc.connectAttr(twistAttr, twistUC.input)
+
+            # Set up scaling
+            pmc.addAttr(grp, ln='volume_hold', at='float', keyable=1, hidden=0, minValue=0.0, maxValue=1.0, defaultValue=1.0)
+
+            # Y
+            yScaleBlend = pmc.createNode('blendTwoAttr', name='%s_%s_yScale_blend' % (self.name, i+1))
+            grp.volume_hold.connect(yScaleBlend.attributesBlender)
+            yScaleBlend.output.connect(scale_grp.sy)
+
+            yScaleMd = pmc.createNode('multiplyDivide', name='%s_%s_yScale_md' % (self.name, i+1))
+            yScaleMd.operation.set(2)
+            yScaleMd.input1X.set(1.0)
+            yScaleMd.input1Y.set(1.0)
+            yScaleMd.input1Z.set(1.0)
+            yScaleMd.outputX.connect(yScaleBlend.input[0])
+            yScaleMd.outputY.connect(yScaleBlend.input[1])
+
+            yScaleVp = pmc.createNode('vectorProduct', name='%s_%s_yScale_vp' % (self.name, i+1))
+            yScaleVp.operation.set(3)
+            loc.matrix.connect(yScaleVp.matrix)
+            yScaleVp.input1X.set(0.0)
+            yScaleVp.input1Y.set(1.0)
+            yScaleVp.input1Z.set(0.0)
+            yScaleVp.outputY.connect(yScaleMd.input2Y)
+
+            # Z
+            zScaleBlend = pmc.createNode('blendTwoAttr', name='%s_%s_zScale_blend' % (self.name, i+1))
+            grp.volume_hold.connect(zScaleBlend.attributesBlender)
+            zScaleBlend.output.connect(scale_grp.sz)
+
+            zScaleMd = pmc.createNode('multiplyDivide', name='%s_%s_zScale_md' % (self.name, i+1))
+            zScaleMd.operation.set(2)
+            zScaleMd.input1X.set(1.0)
+            zScaleMd.input1Y.set(1.0)
+            zScaleMd.input1Z.set(1.0)
+            zScaleMd.outputX.connect(zScaleBlend.input[0])
+            zScaleMd.outputZ.connect(zScaleBlend.input[1])
+
+            zScaleVp = pmc.createNode('vectorProduct', name='%s_%s_zScale_vp' % (self.name, i+1))
+            zScaleVp.operation.set(3)
+            loc.matrix.connect(zScaleVp.matrix)
+            zScaleVp.input1X.set(0.0)
+            zScaleVp.input1Y.set(0.0)
+            zScaleVp.input1Z.set(1.0)
+            zScaleVp.outputZ.connect(zScaleMd.input2Z)
+
+
+#testSeg = CompressSegment('upArm_nonRoll', 'elbow_orient_loc', 'shldr_orient_loc', twistAttr='lowArm_nonRoll_info.rx')
+
+
+
+
+
 
 
 

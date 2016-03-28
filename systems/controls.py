@@ -1,5 +1,6 @@
 import maya.cmds as cmds
 from rooftops.core import common
+import pymel.core as pmc
 
 
 def orientCtrl(ctrl=None, axis=None):
@@ -28,7 +29,7 @@ def circleCtrl(radius=20.0, name='', axis='z'):
     creates a circular nurbs curve
     
     '''
-    ctrl = cmds.circle(name=name, r=radius, ch=0, o=1)
+    ctrl = pmc.circle(name=name, r=radius, ch=0, o=1)
     
     if axis != 'z':
         orientCtrl(ctrl=ctrl, axis=axis)
@@ -41,7 +42,7 @@ def circleBumpCtrl(radius=20.0, name='', axis='z'):
     creates a circular nurbs curve with a bump to indicate orientation
     
     '''
-    ctrl = cmds.circle(name=name, r=radius, ch=0, o=1, s=24)[0]
+    ctrl = pmc.circle(name=name, r=radius, ch=0, o=1, s=24)[0]
     
     shape = common.getShape(ctrl)
     shape = cmds.rename(shape, ctrl+'Shape')
@@ -68,7 +69,7 @@ def boxCtrl(size=20.0, name=''):
     
     knots = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]
     
-    ctrl = cmds.curve(degree=1, p=points, k=knots, name=name)
+    ctrl = pmc.curve(degree=1, p=points, k=knots, name=name)
     
     return ctrl
     
@@ -86,7 +87,7 @@ def crossCtrl(size=20.0, name='', axis='z'):
     
     knots = [1,2,3,4,5,6,7,8]
     
-    ctrl = cmds.curve(degree=1, p=points, k=knots, name=name)
+    ctrl = pmc.curve(degree=1, p=points, k=knots, name=name)
     
     return ctrl
 
@@ -103,7 +104,7 @@ def squareCtrl(size=20.0, name='', axis='y'):
     
     knots = [1,2,3,4,5]
     
-    ctrl = cmds.curve(degree=1, p=points, k=knots, name=name)
+    ctrl = pmc.curve(degree=1, p=points, k=knots, name=name)
     if axis != 'z':
         orientCtrl(ctrl=ctrl, axis=axis)
     return ctrl
@@ -116,16 +117,18 @@ def pinCtrl(radius=20.0, name='', axis='z'):
     
     '''
     axisDict={'x':(radius,0,0), 'y':(0,radius,0), 'z':(0,0,radius)}
-    line = cmds.curve(d = 1, p = [(0,0,0), axisDict[axis]], k = [0,1], name=name)
+    line = pmc.curve(d = 1, p = [(0,0,0), axisDict[axis]], k = [0,1], name=name)
     
-    circle = cmds.circle(name=(name + '_circle'), r=radius*.2, ch=0, o=1, s=24)
+    circle = pmc.circle(name=(name + '_circle'), r=radius*.2, ch=0, o=1, s=24)
     if axis != 'z':
         orientCtrl(ctrl=circle, axis=axis)
-    shape = cmds.listRelatives(circle, shapes = True)[0]
+    shape = pmc.listRelatives(circle, shapes = True)[0]
 
     cmds.move(axisDict[axis][0], axisDict[axis][1], axisDict[axis][2], "%s.cv[:]" % shape, r = 1)
     
     cmds.parent(shape, line, shape = 1, r = 1)
+    shapes = pmc.listRelatives(line, shapes = True)
+    shapes[1].rename(shapes[0].name.replace('Shape', 'CircleShape'))
     cmds.delete(circle)
     
     return line

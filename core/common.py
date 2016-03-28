@@ -3,6 +3,7 @@
 import maya.cmds as cmds
 import maya.OpenMaya as om
 import os, math
+import pymel.core as pmc
 
 
 # Functions
@@ -342,6 +343,108 @@ def connectAttrs(source=None, targetList=[], t=1, r=1):
             cmds.connectAttr(source+'.t', target+'.t')
         if r:
             cmds.connectAttr(source+'.r', target+'.r')
+
+######################################################################################################################################################
+
+def multiply(input1, input2, name, operation=1):
+    '''
+    creates a multiplyDivide node with the given inputs
+    returns the newly created node
+
+    if inputs are attributes, a connection to the attribute is made
+    if inputs are values, initial md values are set accordingly
+
+    '''
+    md = pmc.createNode('multiplyDivide', name=name)
+    md.operation.set(operation)
+
+    val = 0.0
+    connect=False
+
+    if type(input1) == pmc.general.Attribute:
+        val = input1.get()
+        connect=True
+    else:
+        val = input1
+        connect=False
+
+    if type(val) == pmc.datatypes.Vector:
+        if connect:
+            input1.connect(md.input1)
+        else:
+            md.input1.set(input1)
+    else:
+        if connect:
+            input1.connect(md.input1X)
+        else:
+            md.input1X.set(input1)
+
+    if type(input2) == pmc.general.Attribute:
+        val = input2.get()
+        connect=True
+    else:
+        val = input2
+        connect=False
+
+    if type(val) == pmc.datatypes.Vector:
+        if connect:
+            input2.connect(md.input2)
+        else:
+            md.input2.set(input2)
+    else:
+        if connect:
+            input2.connect(md.input2X)
+        else:
+            md.input2X.set(input2)
+
+    return md
+
+def divide(input1, input2, name):
+    multiply(input1, input2, name, operation=2)
+
+def pow(input1, input2, name):
+    multiply(input1, input2, name, operation=3)
+
+def add(inputs, name, operation=1):
+    '''
+    creates a plusMinusAverage node with the given inputs
+    returns the newly created node
+
+    if inputs are attributes, a connection to the attribute is made
+    if inputs are values, initial md values are set accordingly
+    '''
+    pma = pmc.createNode('plusMinusAverage', name=name)
+    pma.operation.set(operation)
+
+    val = 0.0
+    connect=False
+
+    for i in range(len(inputs)):
+        if type(inputs[i]) == pmc.general.Attribute:
+            val = inputs[i].get()
+            connect=True
+        else:
+            val = inputs[i]
+            connect=False
+
+        if type(val) == pmc.datatypes.Vector:
+            if connect:
+                inputs[i].connect('%s.input3D[%s]' % (pma, i))
+            else:
+                pmc.setAttr('%s.input3D[%s]' % (pma, i), inputs[i])
+        else:
+            if connect:
+                inputs[i].connect('%s.input1D[%s]' % (pma, i))
+            else:
+                pmc.setAttr('%s.input1D[%s]' % (pma, i), inputs[i])
+
+    return pma
+
+def minus(inputs, name):
+    add(inputs, name, operation=2)
+
+def average(inputs, name):
+    add(inputs, name, operation=3)
     
     
     
