@@ -44,10 +44,10 @@ def circleBumpCtrl(radius=20.0, name='', axis='z'):
     '''
     ctrl = pmc.circle(name=name, r=radius, ch=0, o=1, s=24)[0]
     
-    shape = common.getShape(ctrl)
-    shape = cmds.rename(shape, ctrl+'Shape')
-    cmds.select( '%s.cv[ 1 ]' % shape )
-    cmds.move(radius*.5, moveY=1, r=1)
+    shape = common.getShape(ctrl.nodeName())
+    shape = shape.rename(ctrl.nodeName()+'Shape')
+    pmc.select( '%s.cv[ 1 ]' % shape )
+    pmc.move(radius*.5, moveY=1, r=1)
     
     if axis != 'z':
         orientCtrl(ctrl=ctrl, axis=axis)

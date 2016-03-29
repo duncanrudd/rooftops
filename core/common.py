@@ -262,7 +262,7 @@ def getShape(transform=None):
     returns the first shape of the specified transform
     
     '''
-    shape = cmds.listRelatives( transform, children=1, shapes=1 )[ 0 ]
+    shape = pmc.listRelatives( transform, children=1, shapes=1 )[ 0 ]
     return shape
 
 ######################################################################################################################################################
@@ -346,6 +346,15 @@ def connectAttrs(source=None, targetList=[], t=1, r=1):
 
 ######################################################################################################################################################
 
+def getPyNode(node):
+    '''
+    returns a pynode  wrapping the given node
+    '''
+    pynode=pmc.ls(node)[0]
+    return pynode
+
+######################################################################################################################################################
+
 def multiply(input1, input2, name, operation=1):
     '''
     creates a multiplyDivide node with the given inputs
@@ -400,10 +409,12 @@ def multiply(input1, input2, name, operation=1):
     return md
 
 def divide(input1, input2, name):
-    multiply(input1, input2, name, operation=2)
+    md = multiply(input1, input2, name, operation=2)
+    return md
 
 def pow(input1, input2, name):
-    multiply(input1, input2, name, operation=3)
+    md = multiply(input1, input2, name, operation=3)
+    return md
 
 def add(inputs, name, operation=1):
     '''
@@ -441,13 +452,15 @@ def add(inputs, name, operation=1):
     return pma
 
 def minus(inputs, name):
-    add(inputs, name, operation=2)
+    pma = add(inputs, name, operation=2)
+    return pma
 
 def average(inputs, name):
-    add(inputs, name, operation=3)
-    
-    
-    
+    pma = add(inputs, name, operation=3)
+    return pma
 
-
-
+def distanceBetweenNodes(node1, node2, name):
+    dist = pmc.createNode('distanceBetween')
+    node1.worldMatrix[0].connect(dist.inMatrix1)
+    node2.worldMatrix[0].connect(dist.inMatrix2)
+    return dist
