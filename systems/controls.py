@@ -126,10 +126,10 @@ def pinCtrl(radius=20.0, name='', axis='z'):
 
     cmds.move(axisDict[axis][0], axisDict[axis][1], axisDict[axis][2], "%s.cv[:]" % shape, r = 1)
     
-    cmds.parent(shape, line, shape = 1, r = 1)
+    pmc.parent(shape, line, shape = 1, r = 1)
     shapes = pmc.listRelatives(line, shapes = True)
-    shapes[1].rename(shapes[0].name.replace('Shape', 'CircleShape'))
-    cmds.delete(circle)
+    shapes[1].rename(shapes[0].nodeName().replace('Shape', 'CircleShape'))
+    pmc.delete(circle)
     
     return line
 

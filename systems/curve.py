@@ -1,5 +1,6 @@
 import maya.cmds as cmds
 from rooftops.core import common
+import pymel.core as pmc
 
 def curveBetweenNodes(start=None, end=None, name=''):
     '''
@@ -357,7 +358,7 @@ class CompressSegment(object):
         self.main_grp = pmc.group(empty=1, name='%s_grp' % self.name)
 
         for i in range(samples):
-            param = 0.0
+            param = 1.0 / (samples+1) * (i+1)
             if lockToStart and lockToEnd:
                 param = 1.0 / (samples-1) * i
             elif lockToStart:
@@ -448,8 +449,28 @@ class CompressSegment(object):
             zScaleVp.input1Z.set(1.0)
             zScaleVp.outputZ.connect(zScaleMd.input2Z)
 
+######################################################################################################################################################
 
-#testSeg = CompressSegment('upArm_nonRoll', 'elbow_orient_loc', 'shldr_orient_loc', twistAttr='lowArm_nonRoll_info.rx')
+def getClosestPointOnCurve(crv, point=None, obj=None):
+    '''
+    returns the uParam of the curve at the closest point to point or obj
+    '''
+    if point:
+        pass
+    elif obj:
+        point = pmc.xform(obj, q=1, ws=1, t=1)
+    else:
+        return 'Incorrect paramters passed in'
+
+    npoc = pmc.createNode('nearestPointOnCurve')
+    crv.worldSpace[0].connect(npoc.inputCurve)
+    npoc.inPosition.set(point)
+    result = npoc.parameter.get()
+    pmc.delete(npoc)
+    return result
+
+
+
 
 
 

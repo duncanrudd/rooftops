@@ -1,6 +1,7 @@
 import pymel.core as pmc
 import maya.cmds as cmds
 from rooftops.core import common
+reload(common)
 from rooftops.systems import curve, controls, measure, nonRoll
 
 legNames=['upper', 'lower', 'ankle', 'end']
@@ -139,7 +140,11 @@ def tripleChain(top=None, mid=None, bot=None, end=None, prefix='', settingsCtrl=
     common.align(wristLoc.nodeName(), ikCtrl.nodeName())
     wristLoc.setParent(aimLoc)
 
-    ctrlDist = common.distanceBetweenNodes(aimLoc, ikCtrl, name='%s_ctrlDist' % prefix)
+    ctrlLoc = pmc.spaceLocator(name='%s_ctrlLoc' % prefix)
+    common.align(ctrlLoc.nodeName(), ikCtrl.nodeName())
+    ctrlLoc.setParent(ikCtrl)
+
+    ctrlDist = common.distanceBetweenNodes(aimLoc, ctrlLoc, name='%s_ctrlDist' % prefix)
     softDist = common.distanceBetweenNodes(wristLoc, softBlendLoc, name='%s_softDist' % prefix)
     stretchDist = common.distanceBetweenNodes(aimLoc, softBlendLoc, name='%s_stretchDist' % prefix)
 
@@ -178,11 +183,11 @@ def tripleChain(top=None, mid=None, bot=None, end=None, prefix='', settingsCtrl=
     isStretchedCond.outColorR.connect(wristLoc.tx)
 
     # stretchy soft IK stuff
-    pc = pmc.pointConstraint(wristLoc, ikCtrl, softBlendLoc)
+    pc = pmc.pointConstraint(wristLoc, ctrlLoc, softBlendLoc)
     stretchRev = pmc.createNode('reverse', name='%s_stretch_rev' % prefix)
     ikCtrl.stretch.connect(stretchRev.inputX)
     stretchRev.outputX.connect('%s.%sW0' % (pc.nodeName(), wristLoc.nodeName()))
-    ikCtrl.stretch.connect('%s.%sW1' % (pc.nodeName(), ikCtrl.nodeName()))
+    ikCtrl.stretch.connect('%s.%sW1' % (pc.nodeName(), ctrlLoc.nodeName()))
 
     globalScaleDiv = common.divide(1.0, globalScaleAttr, name='%s_globalScaleDiv_md' % prefix)
 

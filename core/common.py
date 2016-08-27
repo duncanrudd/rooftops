@@ -3,6 +3,7 @@
 import maya.cmds as cmds
 import maya.OpenMaya as om
 import os, math
+import math as math
 import pymel.core as pmc
 
 
@@ -116,15 +117,16 @@ def insertGroup( node=None, suffix='grp' ):
     
     '''
     if not node:
-        node = cmds.ls(sl=1)[0]
+        node = pmc.selected()[0]
     if node:
-        parent = cmds.listRelatives(node, p=1)
-        grp = cmds.group(empty=1, n='%s_%s' % (node, suffix))
-        align(node=grp, target=node)
+        node = getPyNode(node)
+        parent = pmc.listRelatives(node, p=1)
+        grp = pmc.group(empty=1, n='%s_%s' % (node, suffix))
+        align(node=grp.name(), target=node.name())
         if parent:
-            cmds.parent(grp, parent)
+            pmc.parent(grp, parent)
             
-        cmds.parent(node, grp)
+        pmc.parent(node, grp)
         
         return grp
     else:
@@ -195,7 +197,7 @@ def getDistance( object1, object2 ):
     def mag(numbers):
         num = 0
         for eachNumber in numbers:
-            num += pow(eachNumber, 2)
+            num += math.pow(eachNumber, 2)
             
         mag = math.sqrt(num)
         return mag
@@ -464,3 +466,27 @@ def distanceBetweenNodes(node1, node2, name):
     node1.worldMatrix[0].connect(dist.inMatrix1)
     node2.worldMatrix[0].connect(dist.inMatrix2)
     return dist
+
+def convert(input, factor, name):
+    '''
+    creates a unit conversion node with input connected to input
+    '''
+    uc = pmc.createNode('unitConversion', name=name)
+    input.connect(uc.input)
+    uc.conversionFactor.set(factor)
+    return uc
+
+######################################################################################################################################################
+
+def selectSkinnedJoints(node=None):
+    '''
+    selects all joints bound to the specified node
+    '''
+    if node==None:
+        if len(pmc.selected())==1:
+            node=pmc.selected()[0]
+        else:
+            return 'Please select or specify a skinCluster node'
+
+    influences = pmc.skinCluster(node, q=1, influence=1)
+    pmc.select(influences)
