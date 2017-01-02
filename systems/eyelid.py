@@ -30,4 +30,4 @@ def build(crv, name=''):
         j = pmc.joint(name='%s_%s_jnt' % (name, str(index)))
         j.tx.set(10)
 
-build(crv=common.getPyNode('lid_top_lo_crvShape'))
+#build(crv=common.getPyNode('lid_top_lo_crvShape'))

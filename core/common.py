@@ -490,3 +490,35 @@ def selectSkinnedJoints(node=None):
 
     influences = pmc.skinCluster(node, q=1, influence=1)
     pmc.select(influences)
+
+######################################################################################################################################################
+
+def createAlignedNode(node=None, nodeType='group'):
+    '''
+    creates a node of the specified type and aligns it to the provided node
+    '''
+    if node==None:
+        if len(pmc.selected())==1:
+            node=pmc.selected()[0]
+        else:
+            return 'Please select or specify a node to align to'
+
+    alignedNode = None
+
+    if nodeType =='group':
+        alignedNode = pmc.group(empty=1)
+    elif nodeType == 'locator':
+        alignedNode = pmc.spaceLocator()
+    elif nodeType == 'joint':
+        alignedNode = pmc.joint()
+        alignedNode.setParent(None)
+
+    if alignedNode:
+        align(alignedNode.name(), node.name())
+
+    return alignedNode
+
+
+
+
+
